@@ -1,0 +1,81 @@
+{
+    "name": "吉格舞曲 6/8",
+    "bpm": 120.0,
+    "timeSignature": "6/8",
+    "beatUnit": "Eighth",
+    "version": 1,
+    "notes": [
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 0.0,
+            "duration": 1.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 1.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 2.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 3.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 4.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 5.0,
+            "duration": 1.0
+        },
+        {
+            "key": "M",
+            "mode": "Normal",
+            "beat": 6.0,
+            "duration": 1.0
+        },
+        {
+            "key": ",",
+            "mode": "Normal",
+            "beat": 7.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 8.0,
+            "duration": 1.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 9.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 10.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 11.0,
+            "duration": 1.0
+        }
+    ]
+}

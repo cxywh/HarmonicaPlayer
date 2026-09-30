@@ -1,0 +1,81 @@
+{
+    "name": "圆舞曲 3/4",
+    "bpm": 100.0,
+    "timeSignature": "3/4",
+    "beatUnit": "Quarter",
+    "version": 1,
+    "notes": [
+        {
+            "key": "M",
+            "mode": "Middle",
+            "beat": 0.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 1.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 2.0,
+            "duration": 1.0
+        },
+        {
+            "key": "M",
+            "mode": "Middle",
+            "beat": 3.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 4.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 5.0,
+            "duration": 1.0
+        },
+        {
+            "key": "M",
+            "mode": "Middle",
+            "beat": 6.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 7.000000000000001,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 8.0,
+            "duration": 1.0
+        },
+        {
+            "key": "M",
+            "mode": "Middle",
+            "beat": 9.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 10.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 11.0,
+            "duration": 1.0
+        }
+    ]
+}

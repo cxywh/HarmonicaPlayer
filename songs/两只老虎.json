@@ -1,0 +1,201 @@
+{
+    "name": "两只老虎",
+    "bpm": 120.0,
+    "timeSignature": "4/4",
+    "beatUnit": "Quarter",
+    "version": 1,
+    "notes": [
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 0.0,
+            "duration": 1.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 1.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 2.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 3.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 4.0,
+            "duration": 1.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 5.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 6.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 7.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 8.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 9.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 10.0,
+            "duration": 2.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 12.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 13.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 14.0,
+            "duration": 2.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 16.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 17.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 18.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 19.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 20.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 21.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 22.0,
+            "duration": 1.0
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 23.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 24.0,
+            "duration": 1.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 25.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 26.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 27.0,
+            "duration": 1.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 28.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 29.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 30.0,
+            "duration": 2.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 32.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 33.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 34.0,
+            "duration": 2.0
+        }
+    ]
+}
