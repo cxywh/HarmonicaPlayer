@@ -9,19 +9,19 @@
             "key": ",",
             "mode": "Normal",
             "beat": 0.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 1.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "X",
             "mode": "Normal",
             "beat": 2.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "N",
@@ -39,49 +39,49 @@
             "key": "N",
             "mode": "Normal",
             "beat": 4.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "B",
             "mode": "Normal",
             "beat": 5.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 6.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": ",",
             "mode": "Normal",
             "beat": 8.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 9.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 10.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "B",
             "mode": "Normal",
             "beat": 11.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 12.0,
-            "duration": 3.0
+            "duration": 3
         },
         {
             "key": "N",
@@ -99,17 +99,17 @@
             "key": ",",
             "mode": "Normal",
             "beat": 16.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 17.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 18.0,
             "duration": 0.5
         },
@@ -123,7 +123,7 @@
             "key": "M",
             "mode": "Normal",
             "beat": 19.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": ",",
@@ -141,7 +141,7 @@
             "key": "V",
             "mode": "Normal",
             "beat": 21.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "B",
@@ -159,37 +159,37 @@
             "key": "M",
             "mode": "Normal",
             "beat": 23.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": ",",
             "mode": "Normal",
             "beat": 24.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "C",
             "mode": "Normal",
             "beat": 25.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 26.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "B",
             "mode": "Normal",
             "beat": 27.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "N",
             "mode": "Normal",
             "beat": 28.0,
-            "duration": 4.0
+            "duration": 4
         },
         {
             "key": "Z",
@@ -211,7 +211,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 33.5,
             "duration": 0.5
         },
@@ -259,7 +259,7 @@
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 37.5,
             "duration": 0.5
         },
@@ -267,7 +267,7 @@
             "key": "C",
             "mode": "Normal",
             "beat": 38.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": "Z",
@@ -289,7 +289,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 41.5,
             "duration": 0.5
         },
@@ -345,13 +345,13 @@
             "key": ",",
             "mode": "Normal",
             "beat": 45.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "Z",
             "mode": "Normal",
             "beat": 46.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": "Z",
@@ -373,7 +373,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 49.5,
             "duration": 0.5
         },
@@ -421,7 +421,7 @@
         },
         {
             "key": "V",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 53.5,
             "duration": 0.5
         },
@@ -429,7 +429,7 @@
             "key": "C",
             "mode": "Normal",
             "beat": 54.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": "Z",
@@ -451,7 +451,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 57.5,
             "duration": 0.5
         },
@@ -469,7 +469,7 @@
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 59.0,
             "duration": 0.5
         },
@@ -483,7 +483,7 @@
             "key": "C",
             "mode": "Normal",
             "beat": 60.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "X",
@@ -529,7 +529,7 @@
         },
         {
             "key": "N",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 64.5,
             "duration": 0.5
         },
@@ -559,7 +559,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 67.0,
             "duration": 0.5
         },
@@ -573,7 +573,7 @@
             "key": "V",
             "mode": "Normal",
             "beat": 68.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "B",
@@ -619,7 +619,7 @@
         },
         {
             "key": "N",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 72.5,
             "duration": 0.5
         },
@@ -649,7 +649,7 @@
         },
         {
             "key": "B",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 75.0,
             "duration": 0.5
         },
@@ -663,7 +663,7 @@
             "key": "B",
             "mode": "Normal",
             "beat": 76.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "N",
@@ -691,7 +691,7 @@
         },
         {
             "key": "C",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 79.0,
             "duration": 0.5
         },
@@ -705,7 +705,7 @@
             "key": "X",
             "mode": "Normal",
             "beat": 80.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": "N",
@@ -817,7 +817,7 @@
         },
         {
             "key": "X",
-            "mode": "Normal",
+            "mode": "Right",
             "beat": 92.0,
             "duration": 0.5
         },
@@ -927,7 +927,7 @@
             "key": "B",
             "mode": "Normal",
             "beat": 101.0,
-            "duration": 2.0
+            "duration": 2
         },
         {
             "key": "N",
@@ -1041,7 +1041,7 @@
             "key": ",",
             "mode": "Normal",
             "beat": 113.0,
-            "duration": 1.0
+            "duration": 1
         },
         {
             "key": "N",
@@ -1107,7 +1107,7 @@
             "key": "N",
             "mode": "Normal",
             "beat": 120.0,
-            "duration": 1.0
+            "duration": 1
         }
     ]
 }
