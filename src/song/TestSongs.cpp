@@ -43,7 +43,7 @@ const SongEntry kSongEntries[] = {
     {"C 大调音阶", "scale", "音阶", &Scale},
     {"圆舞曲 3/4", "waltz", "圆舞", &Waltz},
     {"吉格舞曲 6/8", "jig", "吉格", &Jig},
-    {"32 种操作全覆盖", "modes all-modes", "覆盖", &AllModes},
+    {"48 种操作全覆盖", "modes all-modes", "覆盖", &AllModes},
     {"长曲 600 音", "long", "长曲", &LongDefault},
 };
 constexpr int kSongEntryCount = static_cast<int>(sizeof(kSongEntries) / sizeof(kSongEntries[0]));
@@ -180,6 +180,7 @@ Song Jig() {
 Song AllModes() {
     std::vector<BeatNote> beats;
     int index = 0;
+    // 8 键 × 6 种演奏方式 = 48 个音符（kPlayModeCount 变了这里自动跟着变）
     for (int mode = 0; mode < kPlayModeCount; ++mode) {
         for (int key = 0; key < kKeyCount; ++key) {
             beats.push_back(Beat(static_cast<Key>(key), static_cast<PlayMode>(mode),
@@ -187,7 +188,7 @@ Song AllModes() {
             ++index;
         }
     }
-    return MakeSongFromBeats("32 种操作全覆盖", 120.0, NoteValue::Quarter, TimeSignature{4, 4},
+    return MakeSongFromBeats("48 种操作全覆盖", 120.0, NoteValue::Quarter, TimeSignature{4, 4},
                              beats);
 }
 

@@ -94,7 +94,7 @@ private:
 
     mutable std::mutex mtx_;
     std::array<bool, kKeyCount> playerDown_{};          // 工具自己按下的键
-    std::array<bool, kKeyCount> preHeldByUser_{};        // 我们按下之前该键已被按住（诊断用）
+    std::array<bool, kKeyCount> preHeldByUser_{};        // 我们按下之前该键已被用户按住（这类键不补 KeyUp，铁律②）
     InputSendOptions options_{};
     bool lastFailed_ = false;
     unsigned long lastError_ = 0;

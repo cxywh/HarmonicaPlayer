@@ -46,7 +46,7 @@ private:
 
     mutable std::mutex mtx_;
     std::array<bool, kMouseButtonCount> playerDown_{};
-    std::array<bool, kMouseButtonCount> preHeldByUser_{};
+    std::array<bool, kMouseButtonCount> preHeldByUser_{};   // 我们按下之前已被用户按住（这类键不补 UP，铁律②）
     bool lastFailed_ = false;
     unsigned long lastError_ = 0;
 };

@@ -129,6 +129,18 @@ std::string FileNameText(const std::string& path) {
     return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
+// 单实例守护：把已经在跑的那个实例叫到最前面（找不到就什么也不做）
+void ActivateExistingInstance() {
+    const HWND existing = FindWindowW(L"HarmonicaPlayerMain", nullptr);
+    if (existing == nullptr) {
+        return;
+    }
+    if (IsIconic(existing) != FALSE) {
+        ShowWindow(existing, SW_RESTORE);
+    }
+    SetForegroundWindow(existing);
+}
+
 }  // namespace
 
 App::App() = default;
@@ -137,6 +149,10 @@ App::~App() {
     if (foregroundHook_ != nullptr) {
         UnhookWinEvent(foregroundHook_);
         foregroundHook_ = nullptr;
+    }
+    if (instanceMutex_ != nullptr) {
+        CloseHandle(instanceMutex_);   // 释放单实例守护，下次能再开
+        instanceMutex_ = nullptr;
     }
     if (monitor_) {
         monitor_->Stop();
@@ -209,9 +225,75 @@ bool App::RequestElevation(std::string* message) {
     return true;
 }
 
+bool App::RequestElevationAndQuit(std::string* message) {
+    if (!RequestElevation(message)) {
+        return false;
+    }
+    // 提权成功：本实例必须真的退出，否则会跟新实例一起活着（双份钩子 / 双份热键 / 抢注入）。
+    // 走**和启动时同一套退出流程**：置退出标志 + 给主窗口投递 WM_CLOSE
+    //（WM_CLOSE → DestroyWindow → WM_DESTROY → PostQuitMessage → Run 的消息循环结束）。
+    elevationRelaunching_ = true;
+    if (mainWindow_ != nullptr && mainWindow_->Handle() != nullptr) {
+        PostMessageW(mainWindow_->Handle(), WM_CLOSE, 0, 0);
+    }
+    return true;
+}
+
+// 单实例守护（具名 Mutex，Local\ = 当前登录会话）。
+//   谁先建谁持有；后来的实例拿到 ERROR_ALREADY_EXISTS。
+//   - 提权重启（带 --elevated-attempted）：旧实例正在退出，等它把互斥量交出来（最多 5 秒）；
+//   - 否则：把已有窗口叫到前面、给一句提示、本次启动失败（Initialize 返回 false，主程序弹提示后退出）。
+bool App::AcquireSingleInstance(std::string* error) {
+    // 初始拥有：谁先 CreateMutexW 成功谁持有，进程退出时自动释放（被放弃 → WAIT_ABANDONED）
+    instanceMutex_ = CreateMutexW(nullptr, TRUE, L"Local\\HarmonicaPlayer_SingleInstance_v1");
+    if (instanceMutex_ == nullptr) {
+        // 极端情况拿不到互斥量：不该因此挡住程序，照常启动（记录一笔）
+        LogWarn("单实例守护：创建具名互斥量失败，本次不做单实例检查。");
+        return true;
+    }
+    if (GetLastError() != ERROR_ALREADY_EXISTS) {
+        return true;   // 我们是第一个实例
+    }
+    if (elevationAttempted_) {
+        // 提权重启：旧实例马上会退出，等它把互斥量交出来（WAIT_ABANDONED = 旧实例已终止）
+        const DWORD waited = WaitForSingleObject(instanceMutex_, 5000);
+        if (waited == WAIT_OBJECT_0 || waited == WAIT_ABANDONED) {
+            LogInfo("单实例守护：提权重启，旧实例已退出，由本实例接手。");
+            return true;
+        }
+        LogWarn("单实例守护：提权重启时等旧实例退出超时（5 秒），仍继续启动。");
+        return true;
+    }
+    // 已经有一个实例在跑：叫到前面 + 提示 + 退出
+    ActivateExistingInstance();
+    CloseHandle(instanceMutex_);
+    instanceMutex_ = nullptr;
+    if (error != nullptr) {
+        *error = "已经有一个 Harmonica Player 在运行了（同一个程序只开一个，免得两个实例抢按键）。"
+                 "已试着把它切到最前面。";
+    }
+    return false;
+}
+
 bool App::Initialize(HINSTANCE instance, std::string* error) {
     instance_ = instance;
     g_app = this;
+
+    // ---- 命令行开关：要在单实例守护之前知道“本次是不是提权重启”----
+    // --no-elevate 强制不提权（排错/自检）；--elevated-attempted = 这一次是申请后重启的；
+    // --dry-elevate 只记日志、不真申请。
+    {
+        const wchar_t* rawCommandLine = GetCommandLineW();
+        const std::wstring commandLine = rawCommandLine != nullptr ? rawCommandLine : L"";
+        elevationSuppressed_ = commandLine.find(L"--no-elevate") != std::wstring::npos;
+        elevationAttempted_ = commandLine.find(L"--elevated-attempted") != std::wstring::npos;
+        elevationDryRun_ = commandLine.find(L"--dry-elevate") != std::wstring::npos;
+    }
+
+    // ---- 单实例守护（具名 Mutex）：已经有实例在跑就别再建第二套钩子/热键 ----
+    if (!AcquireSingleInstance(error)) {
+        return false;
+    }
 
     // ---- 配置保存（Phase 11）：先读盘，坏文件也照常启动 ----
     settingsPath_ = DefaultSettingsPath();
@@ -274,14 +356,9 @@ bool App::Initialize(HINSTANCE instance, std::string* error) {
     }
 
     // ---- 管理员权限（游戏以管理员身份运行时，普通权限的 SendInput 会被 UIPI 悄悄丢掉）----
-    // 命令行：--no-elevate 强制不提权（排错/自检）；--elevated-attempted = 这一次是申请后重启的；
-    // --dry-elevate 只记日志、不真申请。
+    // 命令行开关已在上方（单实例守护之前）解析：--no-elevate 强制不提权（排错/自检）；
+    // --elevated-attempted = 这一次是申请后重启的；--dry-elevate 只记日志、不真申请。
     {
-        const wchar_t* rawCommandLine = GetCommandLineW();
-        const std::wstring commandLine = rawCommandLine != nullptr ? rawCommandLine : L"";
-        elevationSuppressed_ = commandLine.find(L"--no-elevate") != std::wstring::npos;
-        elevationAttempted_ = commandLine.find(L"--elevated-attempted") != std::wstring::npos;
-        elevationDryRun_ = commandLine.find(L"--dry-elevate") != std::wstring::npos;
         const bool elevated = IsElevated();
         if (!elevated && settings_.runAsAdmin && !elevationSuppressed_ && !elevationAttempted_) {
             std::string reason;
@@ -539,7 +616,9 @@ bool App::ShouldIgnoreUserInput(const UserInputEvent& event) {
     }
     // Phase 13：用户自己加的"排除键位"（游戏里的走路 / 跳跃 / 切枪键）同样不算打断演奏。
     // 热键键已经在上一步挡掉了，这里只管用户手工加进列表的那些键。
-    return IsIgnoredKey(event.vk, ignoredVks_);
+    // 无锁快照：钩子线程只做一次原子读，进不了锁，也不会读到 UI 线程正在改的 vector。
+    const std::shared_ptr<const std::vector<unsigned>> ignored = std::atomic_load(&ignoredVks_);
+    return ignored != nullptr && IsIgnoredKey(event.vk, *ignored);
 }
 
 void App::ForegroundProc(HWINEVENTHOOK hook, DWORD event, HWND hwnd, LONG idObject, LONG idChild,
@@ -984,7 +1063,9 @@ std::string App::ApplySettings(const AppSettings& settings) {
     }
 
     // ---- 排除键位：解析成键码集合（这些键按下时不打断演奏）----
-    ignoredVks_.clear();
+    // 先构造好整份新表，最后一次性原子发布：钩子线程要么看到旧的完整表、要么看到新的完整表，
+    // 绝不会读到被 clear/重分配过的半成品（原来的写法是数据竞争，急停可能因此失效）。
+    std::vector<unsigned> ignoredKeys;
     for (const std::string& text : settings.ignoredKeys) {
         unsigned vk = 0;
         std::string ignoreError;
@@ -992,8 +1073,10 @@ std::string App::ApplySettings(const AppSettings& settings) {
             problems.push_back(std::string("排除键「") + text + "」：" + ignoreError);
             continue;
         }
-        ignoredVks_.push_back(vk);
+        ignoredKeys.push_back(vk);
     }
+    std::atomic_store(&ignoredVks_,
+                      std::make_shared<const std::vector<unsigned>>(std::move(ignoredKeys)));
 
     // ---- 用户输入急停的三项开关 ----
     if (monitor_ != nullptr) {

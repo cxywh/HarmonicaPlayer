@@ -102,8 +102,10 @@ const KeyEntry kKeyTable[kKeyCount] = {
     {Key::Comma, VK_OEM_COMMA, ",", "逗号(,)"},
 };
 
-const char* kPlayModeName[kPlayModeCount]    = {"Normal", "Left", "Middle", "Right"};
-const char* kPlayModeDisplay[kPlayModeCount] = {"正常", "左键", "中键", "右键"};
+// ⚠ 顺序必须与 enum class PlayMode 完全一致：Normal Left Middle Right LeftMiddle RightMiddle
+const char* kPlayModeName[kPlayModeCount] = {"Normal", "Left",  "Middle",
+                                             "Right",  "LeftMiddle", "RightMiddle"};
+const char* kPlayModeDisplay[kPlayModeCount] = {"正常", "左键", "中键", "右键", "左中键", "右中键"};
 
 const char* kMouseName[kMouseButtonCount]    = {"Left", "Middle", "Right"};
 const char* kMouseDisplay[kMouseButtonCount] = {"鼠标左键", "鼠标中键", "鼠标右键"};
@@ -195,13 +197,32 @@ const char* PlayModeDisplayName(PlayMode mode) {
 
 bool ParsePlayMode(const std::string& text, PlayMode& out) {
     const std::string raw = Trim(text);
-    // 中文别名先比（不做大小写转换）
+    // 中文别名先比（不做大小写转换）。
+    // 组合模式（八度 + 半音）先比："左键+中键" 这种写法里也含 "左键"，
+    // 顺序反了会被前面的单键别名先吃掉。
+    if (raw == "左中" || raw == "中左" || raw == "左中键" || raw == "左键+中键") {
+        out = PlayMode::LeftMiddle;
+        return true;
+    }
+    if (raw == "右中" || raw == "中右" || raw == "右中键" || raw == "右键+中键") {
+        out = PlayMode::RightMiddle;
+        return true;
+    }
     if (raw == "正常") { out = PlayMode::Normal; return true; }
     if (raw == "左键" || raw == "左") { out = PlayMode::Left; return true; }
     if (raw == "中键" || raw == "中") { out = PlayMode::Middle; return true; }
     if (raw == "右键" || raw == "右") { out = PlayMode::Right; return true; }
 
     const std::string upper = ToUpperAscii(raw);
+    // 组合模式：LM / RM 或写全名
+    if (upper == "LEFTMIDDLE" || upper == "LEFTMID" || upper == "LM") {
+        out = PlayMode::LeftMiddle;
+        return true;
+    }
+    if (upper == "RIGHTMIDDLE" || upper == "RIGHTMID" || upper == "RM") {
+        out = PlayMode::RightMiddle;
+        return true;
+    }
     if (upper == "NORMAL" || upper == "N") { out = PlayMode::Normal; return true; }
     if (upper == "LEFT"   || upper == "L") { out = PlayMode::Left;   return true; }
     // 注意：这里故意不接受单字母 "M" —— 文本谱里 "M" 表示音调 M，
@@ -209,11 +230,13 @@ bool ParsePlayMode(const std::string& text, PlayMode& out) {
     if (upper == "MIDDLE" || upper == "MID") { out = PlayMode::Middle; return true; }
     if (upper == "RIGHT"  || upper == "R")   { out = PlayMode::Right;  return true; }
 
-    // 数字形式：1/2/3/4
-    if (upper == "1") { out = PlayMode::Normal; return true; }
-    if (upper == "2") { out = PlayMode::Left;   return true; }
-    if (upper == "3") { out = PlayMode::Middle; return true; }
-    if (upper == "4") { out = PlayMode::Right;  return true; }
+    // 数字形式：1/2/3/4/5/6（沿用界面里“正常/左键/中键/右键/左中键/右中键”的编号）
+    if (upper == "1") { out = PlayMode::Normal;      return true; }
+    if (upper == "2") { out = PlayMode::Left;        return true; }
+    if (upper == "3") { out = PlayMode::Middle;      return true; }
+    if (upper == "4") { out = PlayMode::Right;       return true; }
+    if (upper == "5") { out = PlayMode::LeftMiddle;  return true; }
+    if (upper == "6") { out = PlayMode::RightMiddle; return true; }
     return false;
 }
 
@@ -230,14 +253,42 @@ const char* MouseButtonDisplayName(MouseButton button) {
     return (index >= 0 && index < kMouseButtonCount) ? kMouseDisplay[index] : "?";
 }
 
-bool MouseButtonOf(PlayMode mode, MouseButton& out) {
-    switch (mode) {
-        case PlayMode::Normal: return false;
-        case PlayMode::Left:   out = MouseButton::Left;   return true;
-        case PlayMode::Middle: out = MouseButton::Middle; return true;
-        case PlayMode::Right:  out = MouseButton::Right;  return true;
+int MouseButtonsOf(PlayMode mode, MouseButton out[kMaxMouseButtonsPerMode]) {
+    if (out == nullptr) {
+        return 0;
     }
-    return false;
+    switch (mode) {
+        case PlayMode::Normal:
+            return 0;
+        case PlayMode::Left:
+            out[0] = MouseButton::Left;
+            return 1;
+        case PlayMode::Middle:
+            out[0] = MouseButton::Middle;
+            return 1;
+        case PlayMode::Right:
+            out[0] = MouseButton::Right;
+            return 1;
+        // 组合模式：先按八度键（左/右），再按中键（升半音）；松开时反过来。
+        case PlayMode::LeftMiddle:
+            out[0] = MouseButton::Left;
+            out[1] = MouseButton::Middle;
+            return 2;
+        case PlayMode::RightMiddle:
+            out[0] = MouseButton::Right;
+            out[1] = MouseButton::Middle;
+            return 2;
+    }
+    return 0;
+}
+
+bool MouseButtonOf(PlayMode mode, MouseButton& out) {
+    MouseButton buttons[kMaxMouseButtonsPerMode] = {};
+    if (MouseButtonsOf(mode, buttons) <= 0) {
+        return false;   // Normal：不碰鼠标
+    }
+    out = buttons[0];   // 组合模式给出先按下的那个键（全部键见 MouseButtonsOf）
+    return true;
 }
 
 std::string ComboName(PlayMode mode, Key key) {

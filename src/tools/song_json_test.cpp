@@ -295,6 +295,94 @@ void RunErrorHandlingTest() {
     hp::ParseSongFromJsonText("{\"bpm\":0,\"notes\":[]}", untouched);
     Check(untouched.Summary() == before, "加载失败时不会破坏调用方原来的 Song（不留半成品）");
 
+    // ---- 组合模式（八度 + 半音）：新名字要认，旧名字的含义一个字都不能变 ----
+    hp::LogBlank();
+    hp::LogInfo("  —— 演奏方式：新组合模式与旧的 4 个名字 ——");
+    struct ModeCase {
+        const char* text;
+        hp::PlayMode mode;
+    };
+    const ModeCase modeCases[] = {
+        // 新增：低八度 + 升半音
+        {"LeftMiddle", hp::PlayMode::LeftMiddle},
+        {"leftmiddle", hp::PlayMode::LeftMiddle},
+        {"LM", hp::PlayMode::LeftMiddle},
+        {"5", hp::PlayMode::LeftMiddle},
+        {"左中", hp::PlayMode::LeftMiddle},
+        {"中左", hp::PlayMode::LeftMiddle},
+        {"左键+中键", hp::PlayMode::LeftMiddle},
+        // 新增：高八度 + 升半音
+        {"RightMiddle", hp::PlayMode::RightMiddle},
+        {"rightmiddle", hp::PlayMode::RightMiddle},
+        {"RM", hp::PlayMode::RightMiddle},
+        {"6", hp::PlayMode::RightMiddle},
+        {"右中", hp::PlayMode::RightMiddle},
+        {"中右", hp::PlayMode::RightMiddle},
+        {"右键+中键", hp::PlayMode::RightMiddle},
+        // 旧名字（含编号与中文）语义不变
+        {"Normal", hp::PlayMode::Normal},   {"1", hp::PlayMode::Normal},
+        {"正常", hp::PlayMode::Normal},     {"Left", hp::PlayMode::Left},
+        {"2", hp::PlayMode::Left},          {"左键", hp::PlayMode::Left},
+        {"Middle", hp::PlayMode::Middle},   {"3", hp::PlayMode::Middle},
+        {"中键", hp::PlayMode::Middle},     {"Right", hp::PlayMode::Right},
+        {"4", hp::PlayMode::Right},         {"右键", hp::PlayMode::Right},
+    };
+    const int modeTotal = static_cast<int>(sizeof(modeCases) / sizeof(modeCases[0]));
+    int modeParsed = 0;
+    for (const ModeCase& item : modeCases) {
+        const std::string json =
+            std::string("{\"bpm\":120,\"version\":1,\"notes\":[{\"key\":\"Z\",\"mode\":\"") +
+            item.text + "\",\"beat\":0,\"duration\":1}]}";
+        Song song;
+        const SongIoResult result = hp::ParseSongFromJsonText(json, song);
+        const bool good = result.ok && song.notes.size() == 1 && song.notes[0].mode == item.mode;
+        if (!good) {
+            hp::LogError(std::string("      mode 「") + item.text + "」应解析成 " +
+                         hp::PlayModeName(item.mode) + "，实际：" + result.Message());
+        }
+        modeParsed += good ? 1 : 0;
+    }
+    Check(modeParsed == modeTotal,
+          "全部 " + std::to_string(modeTotal) + " 种 mode 写法都解析正确（认对 " +
+              std::to_string(modeParsed) + " 个：新组合模式 14 种 + 旧名字 12 种）");
+
+    // 写出 → 读回：组合模式用英文名落盘，version 仍然是 1（版本号语义没变）
+    {
+        Song combo = hp::test_songs::Metronome();   // 只要一个合法的曲头
+        combo.notes.clear();
+        combo.notes.push_back(hp::Note{hp::Key::Z, hp::PlayMode::LeftMiddle, 0.0, 0.5});
+        combo.notes.push_back(hp::Note{hp::Key::X, hp::PlayMode::RightMiddle, 0.5, 0.5});
+        const std::string text = hp::SongToJsonText(combo);
+        Check(Contains(text, "\"LeftMiddle\"") && Contains(text, "\"RightMiddle\""),
+              "写出的 JSON 里就是 LeftMiddle / RightMiddle 这两个名字");
+        Check(Contains(text, "\"version\": 1"), "文件版本号仍然是 1（没有改 version 的语义）");
+
+        Song back;
+        const SongIoResult roundTrip = hp::ParseSongFromJsonText(text, back);
+        Check(roundTrip.ok && back.notes.size() == 2 &&
+                  back.notes[0].mode == hp::PlayMode::LeftMiddle &&
+                  back.notes[1].mode == hp::PlayMode::RightMiddle,
+              "组合模式 JSON 往返一致（" + roundTrip.Message() + "）");
+    }
+
+    // 旧曲谱（version 1、只有旧 4 种模式）照样能加载
+    {
+        const std::string legacy =
+            "{\n  \"name\": \"旧曲谱\",\n  \"bpm\": 120,\n  \"timeSignature\": \"4/4\",\n"
+            "  \"version\": 1,\n  \"notes\": [\n"
+            "    { \"key\": \"Z\", \"mode\": \"Normal\", \"beat\": 0, \"duration\": 1 },\n"
+            "    { \"key\": \"X\", \"mode\": \"Left\", \"beat\": 1, \"duration\": 1 },\n"
+            "    { \"key\": \"C\", \"mode\": \"Middle\", \"beat\": 2, \"duration\": 1 },\n"
+            "    { \"key\": \"V\", \"mode\": \"Right\", \"beat\": 3, \"duration\": 1 }\n  ]\n}\n";
+        Song song;
+        const SongIoResult result = hp::ParseSongFromJsonText(legacy, song);
+        Check(result.ok && song.notes.size() == 4 && song.notes[0].mode == hp::PlayMode::Normal &&
+                  song.notes[1].mode == hp::PlayMode::Left &&
+                  song.notes[2].mode == hp::PlayMode::Middle &&
+                  song.notes[3].mode == hp::PlayMode::Right,
+              "旧曲谱（version 1、只有 4 种旧模式）照常加载，四个模式含义没变");
+    }
+
     // 路径与文件名工具
     const std::string directory = hp::DefaultSongDirectory();
     Check(!directory.empty() && Contains(directory, "songs"), "默认曲谱目录：" + directory);
@@ -399,6 +487,68 @@ void RunExportAllTest() {
           "全部 " + std::to_string(exported) + " 首内置曲都导出成功");
     Check(static_cast<int>(files.size()) >= exported,
           "目录列表能列出这些文件（" + std::to_string(files.size()) + " 个）");
+}
+
+// -----------------------------------------------------------------------------
+// 5b. 加固自检：超大 / 深嵌套 JSON 必须被拒且不崩（Phase 13 修；不注入任何按键）
+//     内存路径 + 真实文件路径都走一遍，顺带确认正常大小的曲谱没被误伤。
+// -----------------------------------------------------------------------------
+void RunRobustnessTest() {
+    hp::LogBlank();
+    hp::LogInfo("================ 5b. 加固自检（超大 / 深嵌套 JSON）================");
+
+    Check(hp::kMaxSongJsonBytes == 4u * 1024u * 1024u, "体积上限是 4 MB");
+    Check(hp::kMaxSongJsonDepth == 100, "嵌套层数上限是 100");
+
+    // 1) 超大文本（内存路径）：当场被拒，且给中文原因
+    std::string big = "{\"bpm\":120,\"notes\":[]}";
+    big.resize(hp::kMaxSongJsonBytes + 4096, ' ');   // 末尾用空格撑过上限
+    {
+        Song song;
+        const SongIoResult result = hp::ParseSongFromJsonText(big, song);
+        Check(!result.ok && Contains(result.error, "太大"),
+              "超大文本被拒（" + result.error + "）");
+    }
+
+    // 2) 超大文件（真实文件路径）：按文件大小先拒掉，不读进来、不解析
+    {
+        const std::string directory = hp::DefaultSongDirectory();
+        Check(hp::EnsureDirectory(directory), "临时曲谱目录已就绪（放超大测试文件）");
+        const std::string path = directory + "\\hp_robustness_big.json";
+        bool wrote = false;
+        std::FILE* file = nullptr;
+        if (fopen_s(&file, path.c_str(), "wb") == 0 && file != nullptr) {
+            wrote = std::fwrite(big.data(), 1, big.size(), file) == big.size();
+            std::fclose(file);
+        }
+        Check(wrote, "临时超大文件写入成功（" + std::to_string(big.size()) + " 字节）");
+
+        Song song;
+        const SongIoResult result = hp::LoadSongFromJson(path, song);
+        Check(!result.ok && Contains(result.error, "太大"),
+              "超大文件被拒（" + result.error + "）");
+        Check(std::remove(path.c_str()) == 0, "临时超大文件已清理（不给别人留垃圾）");
+    }
+
+    // 3) 深嵌套文本：超上限被拒（而不是让解析递归到栈溢出把程序带走）
+    {
+        std::string nested(static_cast<size_t>(hp::kMaxSongJsonDepth) + 50, '[');
+        nested += "]";
+        Song song;
+        const SongIoResult result = hp::ParseSongFromJsonText(nested, song);
+        Check(!result.ok && Contains(result.error, "嵌套太深"),
+              "深嵌套文本被拒（" + result.error + "）");
+    }
+
+    // 4) 上限之内的正常曲谱照常能读（证明加固没有误伤正常文件）
+    {
+        const std::string normal =
+            "{\"name\":\"加固自检\",\"bpm\":120,\"notes\":"
+            "[{\"key\":\"Z\",\"beat\":0.0,\"duration\":0.25}]}";
+        Song song;
+        const SongIoResult result = hp::ParseSongFromJsonText(normal, song);
+        Check(result.ok && song.NoteCount() == 1, "正常大小的曲谱照常能读（不被加固误伤）");
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -540,9 +690,10 @@ void PrintHelp() {
     hp::LogPlain("    --selftest          错误处理电池（23 个用例）");
     hp::LogPlain("    --save [曲名]        保存到 dist\\songs\\ 再读回（默认 C 大调音阶）");
     hp::LogPlain("    --export-all        导出全部内置曲到 dist\\songs\\");
+    hp::LogPlain("    --robustness        超大 / 深嵌套 JSON 必须被拒且不崩（不注入）");
     hp::LogPlain("    --dump [曲名]        打印 JSON 与拍表");
     hp::LogPlain("    --list              列出 dist\\songs\\ 里的 .json");
-    hp::LogPlain("    --all               依次跑 roundtrip + example + selftest + save + export-all");
+    hp::LogPlain("    --all               依次跑 roundtrip + example + selftest + save + export-all + robustness");
     hp::LogBlank();
     hp::LogPlain("  命令（可能注入按键）：");
     hp::LogPlain("    --load <文件>        加载指定 .json 并干跑一遍");
@@ -698,6 +849,9 @@ int main() {
     } else if (HasFlag(args, "--export-all")) {
         RunExportAllTest();
         exitCode = (g_failed == 0) ? 0 : 1;
+    } else if (HasFlag(args, "--robustness")) {
+        RunRobustnessTest();
+        exitCode = (g_failed == 0) ? 0 : 1;
     } else if (HasFlag(args, "--dump")) {
         RunDumpTest(StringOption(args, "--dump", "C 大调音阶"));
         exitCode = (g_failed == 0) ? 0 : 1;
@@ -716,6 +870,7 @@ int main() {
         RunErrorHandlingTest();
         RunFileRoundTripTest("C 大调音阶");
         RunExportAllTest();
+        RunRobustnessTest();
         exitCode = (g_failed == 0) ? 0 : 1;
     } else if (HasFlag(args, "--load")) {
         const std::string path = StringOption(args, "--load", "");

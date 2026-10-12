@@ -91,6 +91,7 @@ std::vector<std::string> SplitLines(const std::string& text) {
 // 演奏方式前缀：与 ParsePlayMode 一致，但**额外接受单字母 M = 中键**。
 // 只有在写成 "M+键名" 时才会走到这里，所以不会和"音调 M"打架
 // （ParsePlayMode 故意不认单字母 M，就是这个原因）。
+// 组合模式（左+中 / 右+中）写成 LM+X / RM+X；中文可以写 左中 / 左键+中键。
 bool ParseModePrefix(const std::string& text, PlayMode& out) {
     const std::string trimmed = TrimAscii(text);
     std::string upper;
@@ -114,6 +115,10 @@ std::string ModePrefixText(PlayMode mode) {
             return "MIDDLE";
         case PlayMode::Right:
             return "R";
+        case PlayMode::LeftMiddle:
+            return "LM";   // 同时按住左键 + 中键（低八度 + 升半音）
+        case PlayMode::RightMiddle:
+            return "RM";   // 同时按住右键 + 中键（高八度 + 升半音）
         case PlayMode::Normal:
         default:
             return std::string();
@@ -215,7 +220,10 @@ TextScoreResult ParseTextScore(const std::string& text, const Song& header) {
         PlayMode mode = PlayMode::Normal;
         std::string keyText = spec;
 
-        const size_t plus = spec.find('+');
+        // 从**最后一个** '+' 切开：键名永远是一个记号（Z X C V B N M ,），
+        // 左边整段才是演奏方式。这样 "左键+中键+Z" 这种自带 '+' 的别名也能写
+        // （用第一个 '+' 切会把 "左键" 当方式、"中键+Z" 当键名，直接报错）。
+        const size_t plus = spec.rfind('+');
         if (plus != std::string::npos) {
             const std::string modeText = spec.substr(0, plus);
             keyText = spec.substr(plus + 1);
@@ -234,7 +242,8 @@ TextScoreResult ParseTextScore(const std::string& text, const Song& header) {
                     result.issues.push_back(TextScoreIssue{
                         lineNumber, stripped,
                         "无法识别的演奏方式「" + modeText +
-                            "」，可用 Normal / Left / Middle / Right（缩写 N / L / M / R，中键也可写 MIDDLE）"});
+                            "」，可用 Normal / Left / Middle / Right / LeftMiddle / RightMiddle"
+                            "（缩写 N / L / M / R / LM / RM，中键也可写 MIDDLE）"});
                 } else {
                     ++result.moreIssues;
                 }

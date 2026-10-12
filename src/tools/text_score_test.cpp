@@ -229,6 +229,21 @@ void RunTolerantTest() {
         {"逗号", Key::Comma, PlayMode::Normal},
         {"COMMA", Key::Comma, PlayMode::Normal},
         {",", Key::Comma, PlayMode::Normal},
+        // 组合模式（八度 + 半音）：英文名 / 缩写 / 数字 / 中文（含自带 '+' 的写法）
+        {"LeftMiddle+V", Key::V, PlayMode::LeftMiddle},
+        {"LM+V", Key::V, PlayMode::LeftMiddle},
+        {"lm+V", Key::V, PlayMode::LeftMiddle},
+        {"5+V", Key::V, PlayMode::LeftMiddle},
+        {"左中+V", Key::V, PlayMode::LeftMiddle},
+        {"中左+V", Key::V, PlayMode::LeftMiddle},
+        {"左键+中键+V", Key::V, PlayMode::LeftMiddle},
+        {"RightMiddle+N", Key::N, PlayMode::RightMiddle},
+        {"RM+N", Key::N, PlayMode::RightMiddle},
+        {"rm+N", Key::N, PlayMode::RightMiddle},
+        {"6+N", Key::N, PlayMode::RightMiddle},
+        {"右中+N", Key::N, PlayMode::RightMiddle},
+        {"中右+N", Key::N, PlayMode::RightMiddle},
+        {"右键+中键+N", Key::N, PlayMode::RightMiddle},
     };
     int aliasOk = 0;
     for (const AliasCase& item : aliases) {
@@ -374,7 +389,9 @@ void RunRoundTripTest() {
     Check(exactCount >= 1, "至少有一首内置曲能完全往返");
 
     // 手写文本谱 → 曲 → 文本谱，必须逐字节一致
-    const std::string handwritten = "Z 1/4\nX 1/4\nL+C 1/8\nMIDDLE+V 1/8\nR+B 1/2\n, 1/4\n";
+    // （组合模式写成 LM+/RM+；万一输出用的缩写和解析用的缩写不一致，这一条会立刻炸）
+    const std::string handwritten =
+        "Z 1/4\nX 1/4\nL+C 1/8\nMIDDLE+V 1/8\nLM+Z 1/4\nRM+X 1/4\nR+B 1/2\n, 1/4\n";
     const Song header = MakeHeader("手写", 120.0, NoteValue::Quarter, TimeSignature{4, 4});
     const hp::text_score::TextScoreResult parsed =
         hp::text_score::ParseTextScore(handwritten, header);

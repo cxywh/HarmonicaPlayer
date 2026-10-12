@@ -6,9 +6,11 @@
 
     口琴本音 8 个：  1 2 3 4 5 6 7 i        （i = 高音 1）
     对应键盘：       Z X C V B N M ,
-    演奏方式：       正常按键 / 按住鼠标左键 / 中键 / 右键
-                     （按游戏里的说法：左键=降调、中键=半音、右键=升调）
-    音域：           1 到 i 共 8 个音（一个八度 + 高音 do）；再宽就得靠鼠标三种变音
+    演奏方式：       正常按键 / 按住鼠标左键 / 中键 / 右键 / 组合键
+                     （游戏里的说法：左键 = 低一个八度、右键 = 高一个八度、中键 = 升半音；
+                       左键+中键 = 低八度又升半音、右键+中键 = 高八度又升半音）
+    音域：           本音是 1 到 i（一个八度 + 高音 do）；再宽就往低/高八度借，
+                     只要按住某个鼠标键，8 个本音就能覆盖三个多八度
 
 用法：
     python tools/jianpu2score.py --list                列出内置曲目
@@ -16,13 +18,29 @@
     python tools/jianpu2score.py --print 小星星        只打印一首的换算结果，不写文件
 
 简谱写法（够用就行）：
-    1 2 3 4 5 6 7       本音（do re mi fa sol la ti）
+    1 2 3 4 5 6 7       本音（do re mi fa sol ti）
     i                   高音 1（键盘最右边那个逗号键）
-    #4  b7              半音（用鼠标左键/右键变音，见下面的 MODE_ASSUMPTION）
+    #4  b7              半音（用没写出来时按本音 + 中键升半音，见下面的换算规则）
+    +4  +i              高一个八度（按住鼠标右键）
+    v4  v1              低一个八度（按住鼠标左键）
+    +#4  +b7  v#4  vb7  高/低八度再升/降半音（两键同时按住 → RightMiddle / LeftMiddle）
     0                   休止符（不发音，但占时值）
     -                   延长前一个音一拍
     /2  /4              时值减半 / 四分之一（八分音符、十六分音符）
     | 空格 ,            只是给人看的，全部忽略
+
+音级 → 按键 → 演奏方式的换算规则（MODE_ASSUMPTION 那张表就是它）：
+    · 八度记号（+/v）决定"八度分量"：+ 按住右键、v 按住左键；
+    · 半音记号（#/b）决定"半音分量"：中键 = 升半音；
+    · 两者叠加就是组合模式：# 或 b 遇上 + 是 RightMiddle，遇上 v 是 LeftMiddle；
+    · 按键（音级）按这么选：
+        #d  → 按 d 本身 + 中键（d 升半音正好是 #d）；
+        bd  → 按低一级的 d-1，再看它到 d 差多少：
+              差一个全音（1→2、2→3、4→5、5→6、6→7）→ d-1 再升半音，正好是 bd；
+              本来就只差半音（3→4、7→i）→ d-1 本身就是 bd，不用加半音。
+    · 3/mi 与 7/si 上方没有黑键，所以 #3、#7 这种写法里"再加半音"会落到 4、i 上；
+      要写这两个音，直接写 b4、bi 更准。
+    · 数字记号本身（不带 #/b）不影响演奏方式：+4 是"高八度的 4"，键还是 4 那把。
 
 音域自适应：曲子超出 1~i 时会自动整体移调（移八度或移音级），把旋律塞进 8 个音里，
 移调不改变旋律的听感（只是换了调）。真塞不进去（八度跨度太大）会如实报错，不硬凑。
@@ -42,14 +60,28 @@ KEYS = ["Z", "X", "C", "V", "B", "N", "M", ","]     # 依次是 1 2 3 4 5 6 7 i
 LOW = 0      # 最低能弹的音 = 1
 HIGH = 7     # 最高能弹的音 = i
 
-# 半音的写法 → (音级偏移, 演奏方式)
-# 说明：升 d 用「比它高一级的音降半音」来弹（等价），所以 #4 = 降5 = 5 按左键。
-# 游戏里的说法（2026-09 用户核对）：左键 = 降调、中键 = 半音、右键 = 升调。
-# 左/右按 ±半音换算；中键那个"半音"没指明升降方向，暂不参与换算，
-# 确认后在这张表里加一行（例如 "middle": "Middle"）即可。
+# 八度记号的写法（写在音级/半音记号前面）
+OCTAVE_UP = "+"      # +4 / +i：高一个八度 → 按住鼠标右键
+OCTAVE_DOWN = "v"    # v4 / v1：低一个八度 → 按住鼠标左键
+
+# 音级之间的半音数（1 2 3 4 5 6 7 i），用来判断"低一级到 d 差多少"：
+# 差 2 个半音（全音）时低一级再加半音才正好是 bd；差 1 个半音（3→4、7→i）时低一级本身就是 bd。
+DEGREE_SEMITONES = [0, 2, 4, 5, 7, 9, 11, 12]
+
+# (八度记号, 半音记号) → 演奏方式
+# 游戏里鼠标是"修饰键"（2026-10 用户核对）：
+#   左键 = 低一个八度、右键 = 高一个八度、中键 = 升半音，
+#   而且左键/右键能和中间同时按 → 低八度+升半音（LeftMiddle）/ 高八度+升半音（RightMiddle）。
 MODE_ASSUMPTION = {
-    "flat": "Left",      # 降半音
-    "sharp": "Right",    # 升半音
+    (None, None): "Normal",
+    (None, "sharp"): "Middle",                # #4  → 按 4 + 中键
+    (None, "flat"): "Middle",                 # b7  → 按 6 + 中键（b7 = 6 升半音）
+    (OCTAVE_UP, None): "Right",               # +4  → 按住右键（高八度）
+    (OCTAVE_UP, "sharp"): "RightMiddle",      # +#4 → 右键 + 中键
+    (OCTAVE_UP, "flat"): "RightMiddle",       # +b7 → 右键 + 中键
+    (OCTAVE_DOWN, None): "Left",              # v4  → 按住左键（低八度）
+    (OCTAVE_DOWN, "sharp"): "LeftMiddle",     # v#4 → 左键 + 中键
+    (OCTAVE_DOWN, "flat"): "LeftMiddle",      # vb7 → 左键 + 中键
 }
 
 
@@ -74,16 +106,28 @@ def key_for_index(index):
 
 
 def parse_token(token, previous, beats_so_far):
-    """把一个简谱记号变成 (音级编号 or None, 演奏方式, 时值, 半音标记)。"""
+    """把一个简谱记号变成 (音级编号 or None, 半音记号, 八度记号, 时值)。
+
+    半音记号：None / "sharp"（#）/ "flat"（b）
+    八度记号：None / "+"（高一个八度）/ "v"（低一个八度）
+    """
     if token == "-":
         if previous is None:
             raise ScoreError("开头出现「-」：前面没有音可以延长")
-        return ("extend", None, 1.0)
+        return ("extend", None, None, 1.0)
     if token == "0":
-        return (None, None, 1.0)
+        return (None, None, None, 1.0)
+
+    octave = None
+    body = token
+    if body and body[0] == OCTAVE_UP:
+        octave = OCTAVE_UP
+        body = body[1:]
+    elif body and body[0] in ("v", "V"):
+        octave = OCTAVE_DOWN
+        body = body[1:]
 
     accidental = None
-    body = token
     if body and body[0] in "#♯":
         accidental = "sharp"
         body = body[1:]
@@ -109,7 +153,7 @@ def parse_token(token, previous, beats_so_far):
     else:
         raise ScoreError("记号看不懂：「%s」" % token)
 
-    return (index, accidental, duration)
+    return (index, accidental, octave, duration)
 
 
 def tokenize(text):
@@ -120,7 +164,11 @@ def tokenize(text):
 
 
 def to_events(text):
-    """简谱文本 → [(音级编号 or None, 演奏方式, 起始拍, 时值)]（尚未移调）。"""
+    """简谱文本 → [{index, mode, beat, duration}]（尚未移调）。
+
+    "index" 是**真正要按的那个键**的音级编号；八度记号与半音记号合起来决定演奏方式，
+    换算规则见 MODE_ASSUMPTION 上面的注释与文件头的说明。
+    """
     events = []
     beats = 0.0
     last = None
@@ -132,18 +180,24 @@ def to_events(text):
             events[last_index_of(events, last)]["duration"] += 1.0
             beats += 1.0
             continue
-        index, accidental, duration = parsed
+        index, accidental, octave, duration = parsed
         mode = "Normal"
-        if accidental is not None and index is not None:
-            # 升 d = 高一级的音降半音（等价），降 d = 本音降半音
+        if index is not None:
             if accidental == "sharp":
-                index += 1
-                mode = MODE_ASSUMPTION["flat"]
-                if index > HIGH:
-                    index -= 1
-                    mode = MODE_ASSUMPTION["sharp"]
+                # #d = 按 d 本身 + 中键（中键升半音）→ 正好是 #d
+                mode = MODE_ASSUMPTION[(octave, "sharp")]
+            elif accidental == "flat":
+                # bd = 按低一级的 d-1，再按需加半音：
+                # d-1 到 d 差一个全音 → 加半音（中键）；本来就只差半音（3→4、7→i）→ 不加
+                if index == 0:
+                    raise ScoreError("「b1」比口琴最低音（1）还低半音，弹不出来；"
+                                     "可以把整段移高，或者用 v7（低八度的 7）代替")
+                step = DEGREE_SEMITONES[index] - DEGREE_SEMITONES[index - 1]
+                index -= 1
+                mode = MODE_ASSUMPTION[(octave, "flat" if step == 2 else None)]
             else:
-                mode = MODE_ASSUMPTION["flat"]
+                # 不带 #/b：八度记号决定要不要按住左/右键
+                mode = MODE_ASSUMPTION[(octave, None)]
         events.append({"index": index, "mode": mode, "beat": beats, "duration": duration})
         last = index
         beats += duration

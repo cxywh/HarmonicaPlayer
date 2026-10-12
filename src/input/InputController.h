@@ -40,7 +40,11 @@ public:
     // ---- 演奏模式 ----
     // Normal：不碰鼠标。
     // Left/Middle/Right：先按下对应鼠标键（返回其按下结果；Normal 返回 true）。
-    // ReleaseMode 是它的镜像动作。
+    // LeftMiddle/RightMiddle：**依次按下两个鼠标键**（先八度键，再中键），
+    //   返回“两个都按下了”的结果。与单键模式同一条规矩：这里只负责按下，
+    //   失败时**不做任何补救性抬起**（已经按下的键由调用方照常释放，
+    //   绝不替调用方猜测它还想不想按着）。
+    // ReleaseMode 是它的镜像动作（先抬中键，再抬八度键）。
     bool PressMode(PlayMode mode);
     bool ReleaseMode(PlayMode mode);
 

@@ -913,8 +913,10 @@ void SettingsWindow::OnCommand(int id) {
             wanted.runAsAdmin = true;
             const std::string applied = app_.ApplySettings(wanted);
             std::string reason;
-            if (app_.RequestElevation(&reason)) {
-                SetMessage("正在用管理员权限重启…" + applied, false);
+            // 用 RequestElevationAndQuit：提权成功后本实例会立刻退出（置退出标志 + 投递关闭消息），
+            // 不能只提权不退出 —— 那会留下两个实例抢钩子 / 抢注入。
+            if (app_.RequestElevationAndQuit(&reason)) {
+                SetMessage("正在用管理员权限重启…（本窗口会关闭，由新的管理员实例接着跑）" + applied, false);
             } else {
                 SetMessage("申请管理员权限没成功（" + reason + "）。" + applied, true);
             }

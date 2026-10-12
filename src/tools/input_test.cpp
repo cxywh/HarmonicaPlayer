@@ -309,14 +309,29 @@ void PrintKeyTable() {
         hp::LogPlain(line);
     }
     hp::LogBlank();
-    hp::LogPlain("  演奏方式（与上面的音调组合成 8 x 4 = 32 种操作）：");
+    hp::LogPlain("  演奏方式（与上面的音调组合成 8 x 6 = 48 种操作）：");
     for (int i = 0; i < hp::kPlayModeCount; ++i) {
         const PlayMode mode = static_cast<PlayMode>(i);
-        MouseButton button{};
-        const bool usesMouse = hp::MouseButtonOf(mode, button);
+        MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int count = hp::MouseButtonsOf(mode, buttons);
+        std::string how;
+        if (count <= 0) {
+            how = "直接按键";
+        } else {
+            how = "按住";
+            for (int b = 0; b < count; ++b) {
+                if (b > 0) {
+                    how += " + ";
+                }
+                how += hp::MouseButtonDisplayName(buttons[b]);
+            }
+            how += "再按键";
+            if (count > 1) {
+                how += "（两个键要同时按住）";
+            }
+        }
         hp::LogPlain(std::string("    ") + hp::PlayModeDisplayName(mode) + "（" + hp::PlayModeName(mode) +
-                     "）：" + (usesMouse ? ("按住" + std::string(hp::MouseButtonDisplayName(button)) + "再按键")
-                                         : "直接按键"));
+                     "）：" + how);
     }
 }
 
@@ -412,32 +427,76 @@ void RunAutoTest() {
     Check(!KeyboardController::IsVirtualKeyPhysicallyDown(VK_LSHIFT),
           "测试用的 Shift 已清理，环境干净");
 
-    // ---- 5/6 四种演奏模式 ----
+    // ---- 5/6 六种演奏模式（含两个“八度 + 半音”组合）----
     hp::LogBlank();
-    hp::LogInfo("--- 5/6  四种演奏方式（Normal / Left / Middle / Right + Z） ---");
+    hp::LogInfo("--- 5/6  六种演奏方式（Normal / Left / Middle / Right / LeftMiddle / RightMiddle + Z） ---");
     for (int i = 0; i < hp::kPlayModeCount; ++i) {
         const PlayMode mode = static_cast<PlayMode>(i);
+        MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int buttonCount = hp::MouseButtonsOf(mode, buttons);
+
         const bool modeDown = g_input->PressMode(mode);
         const bool keyDown = g_input->PressKey(Key::Z);
         WaitMs(40);
 
         bool ok = keyDown && KeyboardController::IsKeyPhysicallyDown(Key::Z);
-        if (hp::PlayModeUsesMouse(mode)) {
-            MouseButton button{};
-            hp::MouseButtonOf(mode, button);
-            ok = ok && MouseController::IsMousePhysicallyDown(button) && mouse.IsPlayerDown(button);
-        } else {
+        std::string what = std::string("模式 ") + hp::PlayModeDisplayName(mode) + "：";
+        if (buttonCount == 0) {
             ok = ok && modeDown && mouse.PlayerDownCount() == 0;
+            what += "只按下 Z，未触碰鼠标";
+        } else {
+            // 组合模式：要求的鼠标键必须**同时**处于按下状态，而且都被记为 Player-owned
+            what += "鼠标键（";
+            for (int b = 0; b < buttonCount; ++b) {
+                ok = ok && MouseController::IsMousePhysicallyDown(buttons[b]) &&
+                     mouse.IsPlayerDown(buttons[b]);
+                if (b > 0) {
+                    what += " + ";
+                }
+                what += hp::MouseButtonDisplayName(buttons[b]);
+            }
+            ok = ok && mouse.PlayerDownCount() == buttonCount;
+            what += "）与 Z 同时处于按下状态";
         }
-        Check(ok, std::string("模式 ") + hp::PlayModeDisplayName(mode) + "：" +
-                      (hp::PlayModeUsesMouse(mode) ? "鼠标键与 Z 同时处于按下状态"
-                                                   : "只按下 Z，未触碰鼠标"));
+        Check(ok, what);
 
         g_input->ReleaseKey(Key::Z);
         g_input->ReleaseMode(mode);
         WaitMs(30);
         Check(!g_input->AnyPlayerInputDown(),
               std::string("模式 ") + hp::PlayModeDisplayName(mode) + " 结束后无任何残留输入");
+    }
+
+    // ---- 5b/6 组合模式专项：两个鼠标键必须同时按下、结束后两个都抬起 ----
+    hp::LogBlank();
+    hp::LogInfo("--- 5b/6  组合模式专项：左+中 / 右+中（八度 + 半音） ---");
+    {
+        struct ComboCase {
+            PlayMode mode;
+            MouseButton octave;   // 八度键
+        };
+        const ComboCase combos[] = {
+            {PlayMode::LeftMiddle, MouseButton::Left},
+            {PlayMode::RightMiddle, MouseButton::Right},
+        };
+        for (const ComboCase& item : combos) {
+            const bool modeDown = g_input->PressMode(item.mode);
+            WaitMs(40);
+            // 系统视角回读：两个键真的同时按着（不是只按了一个）
+            const bool octaveDown = MouseController::IsMousePhysicallyDown(item.octave);
+            const bool middleDown = MouseController::IsMousePhysicallyDown(MouseButton::Middle);
+            Check(modeDown && octaveDown && middleDown && mouse.PlayerDownCount() == 2,
+                  std::string("组合 ") + hp::PlayModeName(item.mode) + "：" +
+                      hp::MouseButtonDisplayName(item.octave) + " 与 鼠标中键 同时处于按下状态");
+
+            const bool modeUp = g_input->ReleaseMode(item.mode);
+            WaitMs(30);
+            const bool bothUp = !MouseController::IsMousePhysicallyDown(item.octave) &&
+                                !MouseController::IsMousePhysicallyDown(MouseButton::Middle);
+            Check(modeUp && bothUp && !mouse.IsPlayerDown(item.octave) &&
+                      !mouse.IsPlayerDown(MouseButton::Middle) && mouse.PlayerDownCount() == 0,
+                  std::string("组合 ") + hp::PlayModeName(item.mode) + "：两个鼠标键都已抬起，没有残留");
+        }
     }
 
     // ---- 6/6 收尾 ----
@@ -523,12 +582,13 @@ void RunKeySequenceTest(bool useCountdown, int holdMs, int gapMs) {
 }
 
 // -----------------------------------------------------------------------------
-// 3. 四种演奏方式测试（人工确认）
+// 3. 六种演奏方式测试（人工确认）
 // -----------------------------------------------------------------------------
 void RunPlayModeTest(bool useCountdown, int holdMs) {
     hp::LogBlank();
-    hp::LogInfo("================ 四种演奏方式测试 ================");
+    hp::LogInfo("================ 六种演奏方式测试 ================");
     hp::LogPlain("  每种方式会按住 300 毫秒，程序会实时回读系统状态并打印。");
+    hp::LogPlain("  组合模式（左+中 / 右+中）要同时按住两个鼠标键，两行都应显示“是”。");
     if (useCountdown) {
         Countdown(5);
     }
@@ -536,27 +596,40 @@ void RunPlayModeTest(bool useCountdown, int holdMs) {
 
     for (int i = 0; i < hp::kPlayModeCount; ++i) {
         const PlayMode mode = static_cast<PlayMode>(i);
-        MouseButton button{};
-        const bool usesMouse = hp::MouseButtonOf(mode, button);
+        MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int buttonCount = hp::MouseButtonsOf(mode, buttons);
 
         g_input->PressMode(mode);
         g_input->PressKey(Key::Z);
         WaitMs(60);   // 等系统状态稳定后再回读
 
         const bool keyDown = KeyboardController::IsKeyPhysicallyDown(Key::Z);
-        const bool mouseDown = usesMouse && MouseController::IsMousePhysicallyDown(button);
+        bool allMouseDown = true;
+        for (int b = 0; b < buttonCount; ++b) {
+            allMouseDown = allMouseDown && MouseController::IsMousePhysicallyDown(buttons[b]);
+        }
         WaitMs(holdMs - 60 > 0 ? holdMs - 60 : 0);
 
         g_input->ReleaseKey(Key::Z);
         g_input->ReleaseMode(mode);
         WaitMs(10);
-        const bool clean = !g_input->AnyPlayerInputDown();
+        bool allMouseUp = true;
+        for (int b = 0; b < buttonCount; ++b) {
+            allMouseUp = allMouseUp && !MouseController::IsMousePhysicallyDown(buttons[b]);
+        }
+        const bool clean = !g_input->AnyPlayerInputDown() && allMouseUp;
 
         std::string line = "  " + hp::ComboName(mode, Key::Z) + "  ";
         line += "键盘按下=" + std::string(keyDown ? "是" : "否");
-        if (usesMouse) {
-            line += std::string("  ") + hp::MouseButtonDisplayName(button) + "按下=" +
-                    (mouseDown ? "是" : "否");
+        if (buttonCount > 0) {
+            line += "  ";
+            for (int b = 0; b < buttonCount; ++b) {
+                if (b > 0) {
+                    line += " + ";
+                }
+                line += hp::MouseButtonDisplayName(buttons[b]);
+            }
+            line += std::string("按下=") + (allMouseDown ? "是" : "否");
         } else {
             line += "  未使用鼠标（正常）";
         }
@@ -564,7 +637,7 @@ void RunPlayModeTest(bool useCountdown, int holdMs) {
         hp::LogInfo(line);
     }
     hp::LogBlank();
-    hp::LogPlain("  四种方式都应为“是 / 是 / 是”。任一为“否”请把这一行原文反馈给我。");
+    hp::LogPlain("  六种方式都应为“是 / 是 / 是”。任一为“否”请把这一行原文反馈给我。");
 }
 
 // -----------------------------------------------------------------------------
@@ -660,6 +733,150 @@ void RunMonitor() {
 }
 
 // -----------------------------------------------------------------------------
+// 5. 不注入按键的逻辑自检（--logic / 菜单 7）
+//    组合模式（左+中 / 右+中）在真按键之前，先在这里把“名字 ↔ 枚举 ↔ 鼠标键集合”
+//    全部钉死：这一路**不向系统投递任何输入**，所以随时可以跑、也不用担心打扰别人。
+// -----------------------------------------------------------------------------
+void RunLogicSelfTest() {
+    hp::LogBlank();
+    hp::LogInfo("================ 逻辑自检（不注入任何按键） ================");
+    hp::LogPlain("  真按键的那一路在菜单 2 与菜单 4（会真的按下鼠标键）；这里只查换算表。");
+
+    // ---- 1) 6 种演奏方式：名字、显示名、互不相同 ----
+    hp::LogBlank();
+    hp::LogInfo("--- 1/4  6 种演奏方式的名字 ---");
+    Check(hp::kPlayModeCount == 6, "演奏方式一共 6 种（kPlayModeCount = 6）");
+    Check(hp::kMouseButtonCount == 3, "鼠标键仍是 3 个（ReleaseAll 遍历全部 3 个，组合模式必被覆盖）");
+    bool namesOk = true;
+    for (int i = 0; i < hp::kPlayModeCount; ++i) {
+        const PlayMode mode = static_cast<PlayMode>(i);
+        const std::string name = hp::PlayModeName(mode);
+        const std::string display = hp::PlayModeDisplayName(mode);
+        bool good = !name.empty() && name != "?" && !display.empty() && display != "?";
+        for (int j = 0; j < i && good; ++j) {
+            if (name == hp::PlayModeName(static_cast<PlayMode>(j)) ||
+                display == hp::PlayModeDisplayName(static_cast<PlayMode>(j))) {
+                good = false;
+            }
+        }
+        if (!good) {
+            hp::LogError("      第 " + std::to_string(i) + " 种的名字有问题：" + name + " / " + display);
+        }
+        namesOk = namesOk && good;
+        hp::LogPlain("      " + std::to_string(i + 1) + "  " + display + "（" + name + "）");
+    }
+    Check(namesOk, "6 个名字与显示名都能取到且互不相同");
+
+    // ---- 2) 别名解析（英文、缩写、数字、中文）----
+    hp::LogBlank();
+    hp::LogInfo("--- 2/4  别名解析 ---");
+    struct ModeAlias {
+        const char* text;
+        PlayMode mode;
+    };
+    const ModeAlias aliases[] = {
+        {"Normal", PlayMode::Normal},       {"normal", PlayMode::Normal},
+        {"N", PlayMode::Normal},            {"1", PlayMode::Normal},
+        {"正常", PlayMode::Normal},         {"Left", PlayMode::Left},
+        {"L", PlayMode::Left},              {"2", PlayMode::Left},
+        {"左键", PlayMode::Left},           {"Middle", PlayMode::Middle},
+        {"MID", PlayMode::Middle},          {"3", PlayMode::Middle},
+        {"中键", PlayMode::Middle},         {"Right", PlayMode::Right},
+        {"R", PlayMode::Right},             {"4", PlayMode::Right},
+        {"右键", PlayMode::Right},          {"LeftMiddle", PlayMode::LeftMiddle},
+        {"leftmiddle", PlayMode::LeftMiddle}, {"LM", PlayMode::LeftMiddle},
+        {"lm", PlayMode::LeftMiddle},       {"5", PlayMode::LeftMiddle},
+        {"左中", PlayMode::LeftMiddle},     {"中左", PlayMode::LeftMiddle},
+        {"左键+中键", PlayMode::LeftMiddle}, {"RightMiddle", PlayMode::RightMiddle},
+        {"rightmiddle", PlayMode::RightMiddle}, {"RM", PlayMode::RightMiddle},
+        {"rm", PlayMode::RightMiddle},      {"6", PlayMode::RightMiddle},
+        {"右中", PlayMode::RightMiddle},    {"中右", PlayMode::RightMiddle},
+        {"右键+中键", PlayMode::RightMiddle},
+    };
+    const int aliasTotal = static_cast<int>(sizeof(aliases) / sizeof(aliases[0]));
+    int aliasOk = 0;
+    for (const ModeAlias& item : aliases) {
+        PlayMode parsed = PlayMode::Normal;
+        if (hp::ParsePlayMode(item.text, parsed) && parsed == item.mode) {
+            ++aliasOk;
+        } else {
+            hp::LogError(std::string("      没认出来：") + item.text + " → " +
+                         hp::PlayModeName(parsed));
+        }
+    }
+    Check(aliasOk == aliasTotal, "全部 " + std::to_string(aliasTotal) + " 种写法都解析对（认对 " +
+                                    std::to_string(aliasOk) + " 个）");
+
+    // ---- 3) 不认识的要拒绝（单字母 M 仍然是“音调 M”，不是中键）----
+    hp::LogBlank();
+    hp::LogInfo("--- 3/4  不该认的写法 ---");
+    PlayMode parsed = PlayMode::Normal;
+    Check(!hp::ParsePlayMode("M", parsed) && !hp::ParsePlayMode("Up", parsed) &&
+              !hp::ParsePlayMode("", parsed) && !hp::ParsePlayMode("7", parsed) &&
+              !hp::ParsePlayMode("0", parsed),
+          "单字母 M / 未知名字 / 空串 / 数字 0 与 7 都不被当成演奏方式（M 仍是音调 M）");
+
+    // ---- 4) 每种模式要按的鼠标键集合 ----
+    hp::LogBlank();
+    hp::LogInfo("--- 4/4  每种演奏方式要按的鼠标键 ---");
+    struct ButtonCase {
+        PlayMode mode;
+        int count;              // 要按住几个鼠标键
+        MouseButton first;      // 先按下的
+        MouseButton second;     // 再按下的（count == 2 时才有意义）
+    };
+    const ButtonCase cases[] = {
+        {PlayMode::Normal, 0, MouseButton::Left, MouseButton::Left},
+        {PlayMode::Left, 1, MouseButton::Left, MouseButton::Left},
+        {PlayMode::Middle, 1, MouseButton::Middle, MouseButton::Middle},
+        {PlayMode::Right, 1, MouseButton::Right, MouseButton::Right},
+        {PlayMode::LeftMiddle, 2, MouseButton::Left, MouseButton::Middle},
+        {PlayMode::RightMiddle, 2, MouseButton::Right, MouseButton::Middle},
+    };
+    const int caseTotal = static_cast<int>(sizeof(cases) / sizeof(cases[0]));
+    int caseOk = 0;
+    for (const ButtonCase& item : cases) {
+        MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int count = hp::MouseButtonsOf(item.mode, buttons);
+        bool good = (count == item.count) && (hp::PlayModeUsesMouse(item.mode) == (item.count > 0));
+        if (count >= 1) {
+            good = good && buttons[0] == item.first;
+        }
+        if (count >= 2) {
+            good = good && buttons[1] == item.second && buttons[1] != buttons[0];
+        }
+        // 单键版接口（老调用点用的那个）必须与之一致：Normal 返回 false，其余返回第一个键
+        MouseButton single = MouseButton::Left;
+        const bool singleOk = hp::MouseButtonOf(item.mode, single);
+        good = good && (singleOk == (item.count > 0)) && (!singleOk || single == item.first);
+
+        std::string text = std::string("      ") + hp::PlayModeName(item.mode) + " → " +
+                           std::to_string(count) + " 个鼠标键";
+        for (int b = 0; b < count; ++b) {
+            text += (b == 0 ? "：" : " + ");
+            text += hp::MouseButtonDisplayName(buttons[b]);
+        }
+        if (count == 0) {
+            text += "（直接按键）";
+        }
+        hp::LogPlain(text);
+        if (!good) {
+            hp::LogError("      这一条不对（期望 " + std::to_string(item.count) + " 个键）");
+        }
+        caseOk += good ? 1 : 0;
+    }
+    Check(caseOk == caseTotal,
+          "6 种模式的鼠标键集合都对（组合模式 = 两个键，左+中 / 右+中）");
+
+    // 环境干净：跑完逻辑自检不该有任何 Player-owned 输入
+    Check(!g_input->AnyPlayerInputDown(), "逻辑自检结束时没有任何 Player-owned 输入残留");
+
+    hp::LogBlank();
+    hp::LogInfo("逻辑自检结束：通过 " + std::to_string(g_passed) + " 项，失败 " +
+                std::to_string(g_failed) + " 项");
+}
+
+// -----------------------------------------------------------------------------
 // 菜单
 // -----------------------------------------------------------------------------
 void PrintBanner(const std::string& sendMode) {
@@ -678,9 +895,10 @@ void PrintMenu() {
     hp::LogPlain("   1  环境自检       是否提权、前台窗口、注入会不会被系统拦截");
     hp::LogPlain("   2  自动测试       程序自己验证 8 键 + 3 鼠标键 + 状态机 + 用户键保护");
     hp::LogPlain("   3  文本输入测试   切到记事本，程序敲出 Z X C V B N M , （人工确认）");
-    hp::LogPlain("   4  演奏方式测试   Normal / Left / Middle / Right + Z");
+    hp::LogPlain("   4  演奏方式测试   Normal / Left / Middle / Right / LeftMiddle / RightMiddle + Z");
     hp::LogPlain("   5  实时按键监视   按真实按键，验证读取正确且没有卡键");
     hp::LogPlain("   6  按键映射表     8 个音调的虚拟键码与扫描码");
+    hp::LogPlain("   7  逻辑自检       6 种演奏方式的名字/别名/鼠标键集合（不注入任何按键）");
     hp::LogPlain("   0  退出           退出前会自动释放所有工具按住的输入");
     hp::LogPlain("  ------------------------------------------------------------");
 }
@@ -688,7 +906,7 @@ void PrintMenu() {
 int RunInteractiveMenu() {
     for (;;) {
         PrintMenu();
-        hp::LogInline("  请选择 [0-6]：");
+        hp::LogInline("  请选择 [0-7]：");
         std::string choice;
         if (!std::getline(std::cin, choice)) {
             break;   // 输入被关闭（管道结束）
@@ -714,6 +932,9 @@ int RunInteractiveMenu() {
             PauseForEnter();
         } else if (value == "6") {
             PrintKeyTable();
+            PauseForEnter();
+        } else if (value == "7") {
+            RunLogicSelfTest();
             PauseForEnter();
         } else if (!value.empty()) {
             hp::LogWarn("没有这个选项：" + value);
@@ -769,7 +990,8 @@ void PrintHelp() {
     hp::LogPlain("    --list              打印按键映射表");
     hp::LogPlain("    --autotest          自动测试（不需要人工操作，返回码 0=全通过）");
     hp::LogPlain("    --keys              文本输入测试（8 个字符依次敲出，人工确认）");
-    hp::LogPlain("    --modes             四种演奏方式测试（人工确认）");
+    hp::LogPlain("    --modes             六种演奏方式测试（会真按鼠标键，人工确认）");
+    hp::LogPlain("    --logic             逻辑自检（6 种演奏方式的名字/别名/鼠标键集合，不注入）");
     hp::LogPlain("    --monitor           实时按键监视（按 Esc 结束）");
     hp::LogPlain("    --full              = 环境自检 + 自动测试 + 文本输入测试");
     hp::LogPlain("    --help              本帮助");
@@ -828,6 +1050,9 @@ int main(int argc, char** argv) {
         RunKeySequenceTest(useCountdown, holdMs, gapMs);
     } else if (HasFlag(argc, argv, "--modes")) {
         RunPlayModeTest(useCountdown, 300);
+    } else if (HasFlag(argc, argv, "--logic")) {
+        RunLogicSelfTest();
+        exitCode = (g_failed == 0) ? 0 : 1;
     } else if (HasFlag(argc, argv, "--monitor")) {
         RunMonitor();
     } else if (HasFlag(argc, argv, "--full")) {

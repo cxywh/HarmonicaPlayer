@@ -98,6 +98,39 @@ std::string Shorten(const std::string& text, size_t maxLength = 40) {
     return text.substr(0, cut) + "…";
 }
 
+// JSON 最大嵌套层数（跳过字符串内部的括号；引号 / 反斜杠转义都照顾到）。
+// nlohmann 解析深嵌套是递归的，深到一定程度会栈溢出 —— 那不是异常，try/catch 拦不住，
+// 所以要在解析之前先量一下，明显离谱的直接拒。
+int MaxJsonNestingDepth(const std::string& text) {
+    int depth = 0;
+    int maxDepth = 0;
+    bool inString = false;
+    bool escaped = false;
+    for (const char c : text) {
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                inString = false;
+            }
+            continue;
+        }
+        if (c == '"') {
+            inString = true;
+        } else if (c == '{' || c == '[') {
+            ++depth;
+            if (depth > maxDepth) {
+                maxDepth = depth;
+            }
+        } else if ((c == '}' || c == ']') && depth > 0) {
+            --depth;
+        }
+    }
+    return maxDepth;
+}
+
 std::string TypeNameOf(const Json& value) {
     if (value.is_null()) {
         return "空值 null";
@@ -185,7 +218,7 @@ bool ReadNoteObject(const Json& item, size_t index, Song& song, Note& out, std::
         PlayMode mode = PlayMode::Normal;
         if (!ParsePlayMode(modeText, mode)) {
             error = where + "的 \"mode\" 无法识别：" + ValuePreview(item["mode"]) +
-                    "（可用：Normal Left Middle Right）";
+                    "（可用：Normal Left Middle Right LeftMiddle RightMiddle，或数字 1~6）";
             return false;
         }
         out.mode = mode;
@@ -302,7 +335,7 @@ std::string SongToJsonText(const Song& song, int indent) {
 // ---------------------------------------------------------------------------
 // 反序列化：JSON → Song
 // ---------------------------------------------------------------------------
-SongIoResult ParseSongFromJsonText(const std::string& text, Song& out) {
+SongIoResult ParseSongFromJsonTextInner(const std::string& text, Song& out) {
     SongIoResult result;
 
     std::string body = text;
@@ -313,6 +346,19 @@ SongIoResult ParseSongFromJsonText(const std::string& text, Song& out) {
     }
     if (Trim(body).empty()) {
         result.error = "内容为空（没有任何 JSON 文本）";
+        return result;
+    }
+    // 体积上限：超大文本先拒掉，别等到解析时才发现（也防内存被撑爆）
+    if (body.size() > kMaxSongJsonBytes) {
+        result.error = "内容太大（超过 " + std::to_string(kMaxSongJsonBytes / (1024 * 1024)) +
+                       " MB 上限），已拒绝加载。";
+        return result;
+    }
+    // 嵌套层数上限：深嵌套会让解析递归到栈溢出（那不是异常，catch 拦不住）
+    const int nested = MaxJsonNestingDepth(body);
+    if (nested > kMaxSongJsonDepth) {
+        result.error = "JSON 嵌套太深（" + std::to_string(nested) + " 层，上限 " +
+                       std::to_string(kMaxSongJsonDepth) + " 层），已拒绝加载。";
         return result;
     }
 
@@ -477,6 +523,22 @@ SongIoResult ParseSongFromJsonText(const std::string& text, Song& out) {
     return result;
 }
 
+// 对外入口：把整个解析过程包在 try/catch 里。任何 std::exception（类型错误、内存不足、
+// 库内部抛的解析异常……）都在这里变成一条中文错误，绝不让异常穿过 WndProc 把程序带走。
+SongIoResult ParseSongFromJsonText(const std::string& text, Song& out) {
+    try {
+        return ParseSongFromJsonTextInner(text, out);
+    } catch (const std::exception& error) {
+        SongIoResult failed;
+        failed.error = std::string("解析曲谱时发生异常（已拦下，程序不会崩）：") + error.what();
+        return failed;
+    } catch (...) {
+        SongIoResult failed;
+        failed.error = "解析曲谱时发生未知异常（已拦下，程序不会崩）。";
+        return failed;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 文件读写
 // ---------------------------------------------------------------------------
@@ -541,11 +603,29 @@ SongIoResult LoadSongFromJson(const std::string& path, Song& out) {
         result.error = "打不开文件（不存在或没有权限）：" + path;
         return result;
     }
+    // 体积上限：先看文件到底多大，超了就当场拒掉（不读进来、不解析；也防把内存撑爆）
+    long long fileBytes = -1;
+    if (_fseeki64(file, 0, SEEK_END) == 0) {
+        fileBytes = _ftelli64(file);
+        _fseeki64(file, 0, SEEK_SET);
+    }
+    if (fileBytes > static_cast<long long>(kMaxSongJsonBytes)) {
+        std::fclose(file);
+        result.error = "文件太大（超过 " + std::to_string(kMaxSongJsonBytes / (1024 * 1024)) +
+                       " MB 上限）：" + path + "，已拒绝加载。";
+        return result;
+    }
+
     std::string text;
     char buffer[8192];
     size_t read = 0;
+    bool tooBig = false;
     while ((read = std::fread(buffer, 1, sizeof(buffer), file)) > 0) {
         text.append(buffer, read);
+        if (text.size() > kMaxSongJsonBytes) {
+            tooBig = true;   // 拿不到文件大小时（例如特殊文件）在读取途中兜底
+            break;
+        }
     }
     const bool readError = std::ferror(file) != 0;
     std::fclose(file);
@@ -553,8 +633,23 @@ SongIoResult LoadSongFromJson(const std::string& path, Song& out) {
         result.error = "读取文件失败：" + path;
         return result;
     }
+    if (tooBig) {
+        result.error = "文件太大（超过 " + std::to_string(kMaxSongJsonBytes / (1024 * 1024)) +
+                       " MB 上限）：" + path + "，已拒绝加载。";
+        return result;
+    }
 
-    result = ParseSongFromJsonText(text, out);
+    // 整个解析过程再包一层 try/catch：任何异常都在这里变成中文错误，
+    // 绝不让它穿出去（这条路径最终会经过窗口过程，异常穿出去等于程序直接崩）。
+    try {
+        result = ParseSongFromJsonText(text, out);
+    } catch (const std::exception& error) {
+        result = SongIoResult();
+        result.error = std::string("加载曲谱时发生异常（已拦下，程序不会崩）：") + error.what();
+    } catch (...) {
+        result = SongIoResult();
+        result.error = "加载曲谱时发生未知异常（已拦下，程序不会崩）。";
+    }
     return result;
 }
 
@@ -687,6 +782,16 @@ SongIoResult CheckSongJsonShape(const std::string& text) {
     if (body.size() >= 3 && static_cast<unsigned char>(body[0]) == 0xEF &&
         static_cast<unsigned char>(body[1]) == 0xBB && static_cast<unsigned char>(body[2]) == 0xBF) {
         body.erase(0, 3);
+    }
+    // 与加载路径同一条体积 / 嵌套上限（这个函数也吃原始文本，同样别被撑爆 / 栈溢出）
+    if (body.size() > kMaxSongJsonBytes) {
+        result.error = "内容太大（超过 " + std::to_string(kMaxSongJsonBytes / (1024 * 1024)) +
+                       " MB 上限），已拒绝检查。";
+        return result;
+    }
+    if (MaxJsonNestingDepth(body) > kMaxSongJsonDepth) {
+        result.error = "JSON 嵌套太深（上限 " + std::to_string(kMaxSongJsonDepth) + " 层），已拒绝检查。";
+        return result;
     }
 
     Json root;

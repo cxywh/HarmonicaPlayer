@@ -234,6 +234,9 @@ std::string PlayModeButtonName(PlayMode mode) {
         case PlayMode::Left:   return "按住左键（降调）";
         case PlayMode::Middle: return "按住中键（半音）";
         case PlayMode::Right:  return "按住右键（升调）";
+        // 组合模式：要同时按住两个鼠标键（少了“+中键”用户会以为只按一个键）
+        case PlayMode::LeftMiddle:  return "按住左键+中键（降调+半音）";
+        case PlayMode::RightMiddle: return "按住右键+中键（升调+半音）";
     }
     return "?";
 }
@@ -326,7 +329,8 @@ const char* kSettings = "设置";
 // 文本曲谱窗口（Phase 9）：文案集中在这里，禁 emoji 守卫才扫得到
 const char* kTextScoreTitle = "文本曲谱（一行一个音符）";
 const char* kTextScoreHint =
-    "一行一个音符：[演奏方式+]键名 [时值]。演奏方式写 Normal / Left / Middle / Right（缩写 N / L / M / R），"
+    "一行一个音符：[演奏方式+]键名 [时值]。演奏方式写 Normal / Left / Middle / Right / "
+    "LeftMiddle / RightMiddle（缩写 N / L / M / R / LM / RM），"
     "键名是 Z X C V B N M 与逗号，时值写 1/1 1/2 1/4 1/8 1/16（不写就是 1/4）。\n"
     "空行与以 # 或 // 开头的行会被跳过；时间由时值依次累加得到，文本谱不表示休止符。";
 const char* kTextScoreName = "曲名：";

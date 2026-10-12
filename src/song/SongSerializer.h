@@ -24,12 +24,20 @@
 //   "beatUnit" ：一拍对应哪个时值（4/4 → "Quarter"、6/8 → "Eighth"）；缺省按拍号分母推导
 //   "comment"  ：留给作者的自由备注
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
 #include "song/Song.h"
 
 namespace hp {
+
+// 曲谱文本的上限（防超大 / 深嵌套 JSON 把程序拖死或撑爆内存）。
+// 一首口琴曲最多几千个音符，4 MB 已经是极其宽松的上限；超过直接拒，并给中文原因。
+constexpr size_t kMaxSongJsonBytes = 4u * 1024u * 1024u;
+// 最大嵌套层数：nlohmann 解析深嵌套是递归的，深到一定程度会栈溢出（那不是异常，catch 拦不住），
+// 所以在解析之前先把明显离谱的拒绝掉。
+constexpr int kMaxSongJsonDepth = 100;
 
 // ---------------------------------------------------------------------------
 // 读写结果：失败给出中文原因；能救回来的问题进 warnings（不阻断加载）

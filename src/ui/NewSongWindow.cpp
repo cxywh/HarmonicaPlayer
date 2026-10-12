@@ -3,7 +3,9 @@
 // 界面结构（单游标自顶向下，按钮跟着内容走，最后按内容总高把窗口调到刚好）：
 //   [曲谱信息]  曲名 / 速度（BPM）
 //   [加音符]    音调：1 2 3 4 5 6 7 i （括号里是键盘 Z X C V B N M ,）
-//               演奏方式：不按鼠标（本音）/ 按住左键（降调）/ 按住中键（半音）/ 按住右键（升调）
+//               演奏方式：第一行 不按鼠标（本音）/ 按住左键（降调）/ 按住中键（半音）/ 按住右键（升调）
+//                         第二行 按住左键+中键（降调+半音）/ 按住右键+中键（升调+半音）
+//                         （后两个是组合模式：同时按住两个鼠标键）
 //               时值：一拍 / 两拍 / 半拍 / 休止一拍
 //   [已加的音符] 表格（序号/小节/拍位置/起始时间/音调/演奏方式/时值）
 //   底部：保存到曲谱列表… / 删掉最后一个 / 全部清空 / 关闭 + 状态行
@@ -32,7 +34,7 @@ const wchar_t* kWindowClass = L"HarmonicaPlayerNewSong";
 constexpr int kIdName = 2101;
 constexpr int kIdBpm = 2102;
 constexpr int kIdNoteBase = 2110;       // 2110..2117 → Key::Z..Comma
-constexpr int kIdModeBase = 2120;       // 2120..2123 → PlayMode
+constexpr int kIdModeBase = 2120;       // 2120..2125 → PlayMode（6 种：单键 4 + 组合 2）
 constexpr int kIdDurationBase = 2130;   // 2130..2133 → kDurationChoices
 constexpr int kIdList = 2140;
 constexpr int kIdDeleteSelected = 2150;   // 删除选中行（原来是"删掉最后一个"）
@@ -64,6 +66,8 @@ const char* ShortModeName(PlayMode mode) {
         case PlayMode::Left:   return "左键";
         case PlayMode::Middle: return "中键";
         case PlayMode::Right:  return "右键";
+        case PlayMode::LeftMiddle:  return "左+中";
+        case PlayMode::RightMiddle: return "右+中";
     }
     return "?";
 }
@@ -374,9 +378,13 @@ void NewSongWindow::Layout() {
     move(bpmHint_, rowLeft + S(56) + S(78), rowY + S(3), S(260), S(20));
     y += groupHeight(2) + groupGap;
 
-    // 加音符（三行按钮 + 一行提示）
-    // 加音符分组：表头 + 三行按钮（按 buttonRowPitch 摊开）+ 一行提示 + 底边
-    const int pickGroupHeight = groupHead + buttonRowPitch * 3 + rowsUnit + groupFoot;
+    // 加音符（四行按钮 + 一行提示）
+    // 加音符分组：表头 + 四行按钮（音调 1 行 + 演奏方式 2 行 + 时值 1 行，按 buttonRowPitch 摊开）
+    //             + 一行提示 + 底边
+    constexpr int kModesPerRow = 4;   // 演奏方式每行最多放 4 个（4 个单键一行，2 个组合模式另起一行）
+    constexpr int kModeRows = (kPlayModeCount + kModesPerRow - 1) / kModesPerRow;
+    const int pickGroupHeight =
+        groupHead + buttonRowPitch * (1 + kModeRows + 1) + rowsUnit + groupFoot;
     pickGroup_ = RECT{margin, y, width - margin, y + pickGroupHeight};
     rowY = y + groupHead;
     {
@@ -392,16 +400,19 @@ void NewSongWindow::Layout() {
     }
     rowY += buttonRowPitch;
     {
+        // 演奏方式按钮：每行 kModesPerRow 个（前 4 个单键一行；2 个组合模式另起一行，字才放得下）
         const int available = width - (rowLeft + labelWidth) - margin - inner;
         move(modeLabel_, rowLeft, rowY + S(5), S(64), S(20));
-        const int buttonWidth = std::max(S(96), (available - buttonGap * (kPlayModeCount - 1)) / kPlayModeCount);
-        int x = rowLeft + labelWidth;
+        const int buttonWidth =
+            std::max(S(96), (available - buttonGap * (kModesPerRow - 1)) / kModesPerRow);
         for (int i = 0; i < kPlayModeCount; ++i) {
-            move(modeButtons_[i], x, rowY, buttonWidth, buttonHeight);
-            x += buttonWidth + buttonGap;
+            const int row = i / kModesPerRow;
+            const int column = i % kModesPerRow;
+            move(modeButtons_[i], rowLeft + labelWidth + column * (buttonWidth + buttonGap),
+                 rowY + row * buttonRowPitch, buttonWidth, buttonHeight);
         }
     }
-    rowY += buttonRowPitch;
+    rowY += buttonRowPitch * kModeRows;
     {
         move(durationLabel_, rowLeft, rowY + S(5), S(64), S(20));
         int x = rowLeft + labelWidth;

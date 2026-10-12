@@ -29,27 +29,49 @@ bool InputController::ReleaseMouse(MouseButton button) {
     return mouse_.Release(button);
 }
 
+// 组合模式（LeftMiddle/RightMiddle）要**同时按住两个鼠标键**：
+// 循环里逐个按下（先八度键、后中键），整个过程在 actionMutex_ 内，
+// ReleaseAll / ReleaseMode 不会插到两个键中间。
+// 只释放“自己真正按下成功过”的键这件事由 MouseController 负责（Player-owned 追踪），
+// 因此这里对“按不下去的键”不补发抬起，也不会碰到用户自己按住的鼠标键。
 bool InputController::PressMode(PlayMode mode) {
-    MouseButton button{};
-    if (!MouseButtonOf(mode, button)) {
+    MouseButton buttons[kMaxMouseButtonsPerMode] = {};
+    const int count = MouseButtonsOf(mode, buttons);
+    if (count <= 0) {
         return true;   // Normal：不碰鼠标
     }
     std::lock_guard<std::mutex> lock(actionMutex_);
-    return mouse_.Press(button);
+    bool allOk = true;
+    for (int i = 0; i < count; ++i) {
+        if (!mouse_.Press(buttons[i])) {
+            allOk = false;   // 记下失败，但仍然把该按的都按到（多步动作要么全做、要么不做）
+        }
+    }
+    return allOk;
 }
 
 bool InputController::ReleaseMode(PlayMode mode) {
-    MouseButton button{};
-    if (!MouseButtonOf(mode, button)) {
+    MouseButton buttons[kMaxMouseButtonsPerMode] = {};
+    const int count = MouseButtonsOf(mode, buttons);
+    if (count <= 0) {
         return true;   // Normal：不碰鼠标
     }
     std::lock_guard<std::mutex> lock(actionMutex_);
-    return mouse_.Release(button);
+    bool allOk = true;
+    // 与按下顺序相反：先抬中键，再抬八度键
+    for (int i = count - 1; i >= 0; --i) {
+        if (!mouse_.Release(buttons[i])) {
+            allOk = false;   // 不是工具按下的键 —— 一概不发抬起（只记账）
+        }
+    }
+    return allOk;
 }
 
 void InputController::ReleaseAll() {
     // 顺序：先键盘后鼠标，整体不可被打断。
     // 单次调用必须极快（不 Sleep、不等待），因为急停路径会直接调用它。
+    // mouse_.ReleaseAll() 会遍历全部 3 个鼠标键，组合模式（左+中 / 右+中）自然被覆盖，
+    // 急停 / 演奏结束之后不会留下被按住的鼠标键。
     std::lock_guard<std::mutex> lock(actionMutex_);
     keyboard_.ReleaseAll();
     mouse_.ReleaseAll();

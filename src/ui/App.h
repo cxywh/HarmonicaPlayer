@@ -55,6 +55,10 @@ public:
     // 以管理员身份重启（游戏以管理员身份运行时，普通权限的 SendInput 会被系统 UIPI 丢掉）：
     // 成功则本实例马上退出、由提权后的新实例接着跑；失败把中文原因写进 *message
     bool RequestElevation(std::string* message);
+    // 设置窗口点“立即以管理员身份重启”走这条：提权成功后要用**和启动时同一套退出流程**
+    // 结束本实例（置退出标志 + 给主窗口投递关闭消息）。只调 RequestElevation 不退出，
+    // 旧实例会继续带着钩子 / 热键活着，于是两个实例同时响应按键、抢注入。
+    bool RequestElevationAndQuit(std::string* message);
     // Initialize 是否因为"正在提权重启"而提前返回（主程序据此安静退出）
     bool ElevationRelaunchRequested() const { return elevationRelaunching_; }
     // 本进程当前是不是管理员权限
@@ -174,6 +178,8 @@ private:
     void OnForegroundWindow(HWND window);
     void RebuildTimeline();
     void ApplyForegroundPolicy(HWND window);
+    // 单实例守护：具名 Mutex。已经有实例在跑就把它叫到前面并让本次启动失败（返回 false）。
+    bool AcquireSingleInstance(std::string* error);
 
     HINSTANCE instance_ = nullptr;
 
@@ -203,12 +209,16 @@ private:
     std::string settingsPath_;      // Phase 11：配置文件路径
 
     // Phase 13：排除键位解析出来的键码（按下不打断演奏）。设置一变就重算。
-    std::vector<unsigned> ignoredVks_;
+    // 无锁快照：UI 线程构造好新的一份后用 std::atomic_store 一次发布，钩子线程只做
+    // std::atomic_load（不进锁）。原来是裸 vector —— UI 线程 clear/push_back 引起重分配的
+    // 那一瞬间，钩子线程会读到已释放的内存（数据竞争，急停可能失效）。
+    std::shared_ptr<const std::vector<unsigned>> ignoredVks_;
 
     std::string statusText_;
     bool statusError_ = false;
 
     HWINEVENTHOOK foregroundHook_ = nullptr;
+    HANDLE instanceMutex_ = nullptr;         // 单实例守护用的具名互斥量
     HWND playbackForeground_ = nullptr;      // 开始演奏时的前台窗口（游戏）
     bool elevationRelaunching_ = false;      // 已经发起提权重启，本实例该退出了
     bool elevationAttempted_ = false;        // 命令行带 --elevated-attempted：不再申请第二次

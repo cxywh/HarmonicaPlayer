@@ -269,8 +269,9 @@ SettingsLoadResult SettingsFromJson(const AppSettings& defaults, const std::stri
     } else if (exclusiveHotkeys->is_boolean()) {
         loaded.exclusiveHotkeys = exclusiveHotkeys->get<bool>();
     } else {
-        result.warnings.push_back("配置项 runAsAdmin 类型不对，已用默认值");
-        loaded.runAsAdmin = defaults.runAsAdmin;
+        // 这里原来抄错成 runAsAdmin（文案与回退都指到了另一个字段）
+        result.warnings.push_back("配置项 exclusiveHotkeys 类型不对，已用默认值");
+        loaded.exclusiveHotkeys = defaults.exclusiveHotkeys;
     }
 
     // 值域校验走与界面同一条路（速度 50%~200%）

@@ -9,11 +9,15 @@
 //   L+V              → Left + V
 //   R+N              → Right + N
 //   MIDDLE+,         → Middle + ,（逗号键）
+//   LM+V             → LeftMiddle + V（同时按住左键 + 中键）
+//   RM+B             → RightMiddle + B（同时按住右键 + 中键）
+//   左键+中键+V      → 同上（中文别名里带 '+' 也认：从最后一个 '+' 切开）
 //   C 1/8            → Normal + C，八分音符
 //   B 1/2            → Normal + B，二分音符
 //
 // 时值写法走 NoteValue 的通用解析：1/4、四分、四分音符、QUARTER、4 都认。
-// 演奏方式缩写：N/NORMAL/正常、L/LEFT/左键、M/MIDDLE/中键、R/RIGHT/右键、2/3/4。
+// 演奏方式缩写：N/NORMAL/正常、L/LEFT/左键、M/MIDDLE/中键、R/RIGHT/右键、
+//   LM/LEFTMIDDLE/左中、RM/RIGHTMIDDLE/右中、数字 1..6。
 //   （注意：只有写成 `M+` 时 M 才表示中键；单独一个 `M` 是音调 M —— 与
 //    ParsePlayMode 的约定一致，那边故意不认单字母 M。）
 //

@@ -192,9 +192,14 @@ bool SongPlayer::PressNoteGuarded(const Note& note) {
         heldCount_.store(static_cast<int>(held_.size()));
         return true;
     }
-    // 只按下鼠标、没按下键：把鼠标键放掉，别留下孤立的按下
-    if (modeOk && !keyOk) {
-        input_.ReleaseMode(note.mode);
+    // 失败分支：把**已经真正按下的那一部分**释放干净，保证任何分支下都不留键。
+    // 原来的缺口：modeOk 为假、keyOk 为真时，键已经按进 Player-owned 账本却没进 held_，
+    // 于是永远不会被 ReleaseDueNotes 释放 —— 演奏里会一直卡住这一个音（直到整曲停止）。
+    if (keyOk) {
+        input_.ReleaseKey(note.key);      // 键按下成功了：放掉它
+    }
+    if (modeOk) {
+        input_.ReleaseMode(note.mode);    // 鼠标键（演奏方式）按下成功了：放掉它
     }
     return false;
 }

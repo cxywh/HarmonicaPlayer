@@ -168,8 +168,8 @@ bool KeyboardController::PressKey(Key key) {
         return false;
     }
 
-    // 只作诊断记录：这个键在我们按下之前是不是已经被（用户）按住。
-    // 不改变释放策略 —— 见 README「已知问题 3」。
+    // 记下：这个键在我们按下之前是不是已经被（用户）按住。
+    // 铁律②：这种键实际上属于用户 —— 释放时绝不补 KeyUp（见 ReleaseKey / ReleaseAll）。
     preHeldByUser_[index] = IsKeyPhysicallyDown(key);
 
     if (!SendKeyEventLocked(key, true)) {
@@ -191,6 +191,14 @@ bool KeyboardController::ReleaseKey(Key key) {
         return false;
     }
 
+    // 铁律②：这个键在我们按下之前**就已经被用户按住**了 —— 它实际上是用户的键，不是我们的。
+    // 给它补一个 KeyUp 就等于把用户自己按着的键抬起来（正是要修的那个 bug）。这里只清掉
+    // 我们这边的记账，物理状态交还给用户。
+    if (preHeldByUser_[index]) {
+        ClearStateLocked(index);
+        return false;
+    }
+
     if (!SendKeyEventLocked(key, false)) {
         // 抬起失败时重试一次；无论成败都必须清掉状态，否则会永远卡在“以为按着”。
         SendKeyEventLocked(key, false);
@@ -204,6 +212,12 @@ void KeyboardController::ReleaseAll() {
     std::lock_guard<std::mutex> lock(mtx_);
     for (int i = 0; i < kKeyCount; ++i) {
         if (!playerDown_[i]) {
+            continue;
+        }
+        if (preHeldByUser_[i]) {
+            // 用户本来就按着的键：一概不碰（铁律②）——急停时也不许把用户的键抬起来。
+            // 只清掉我们这边的记账，别留一个假的“我们按着”在账本里。
+            ClearStateLocked(i);
             continue;
         }
         if (!SendKeyEventLocked(static_cast<Key>(i), false)) {

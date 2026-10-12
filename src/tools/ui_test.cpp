@@ -205,6 +205,13 @@ void RunTableTest() {
                                                           hp::ui::NoteKeyCell(hp::Key::Comma));
     Check(hp::ui::NoteModeCell(hp::PlayMode::Left) == "Left",
           "模式列：" + hp::ui::NoteModeCell(hp::PlayMode::Left));
+    Check(hp::ui::NoteModeCell(hp::PlayMode::LeftMiddle) == "LeftMiddle" &&
+              hp::ui::NoteModeCell(hp::PlayMode::RightMiddle) == "RightMiddle",
+          "模式列（组合模式）：" + hp::ui::NoteModeCell(hp::PlayMode::LeftMiddle) + " / " +
+              hp::ui::NoteModeCell(hp::PlayMode::RightMiddle));
+    Check(hp::ui::PlayModeButtonName(hp::PlayMode::LeftMiddle) == "按住左键+中键（降调+半音）" &&
+              hp::ui::PlayModeButtonName(hp::PlayMode::RightMiddle) == "按住右键+中键（升调+半音）",
+          "组合模式按钮文案：" + hp::ui::PlayModeButtonName(hp::PlayMode::LeftMiddle));
 
     // 120 BPM、四分音符为一拍：四分音符 = 1 拍，八分音符 = 0.5 拍
     Check(hp::ui::NearestValueName(1.0, hp::NoteValue::Quarter) == "Quarter",
@@ -652,9 +659,10 @@ void RunBeatMathTest() {
         Check(hp::ui::KeyNoteName(hp::Key::Z) == "1" && hp::ui::KeyNoteName(hp::Key::M) == "7",
               "Z = 1、M = 7");
 
-        // 演奏方式按钮：4 个，名字互不相同，并且把"左/中/右"说清楚（用户不懂左/中/右的含义）
+        // 演奏方式按钮：6 个（4 个单键 + 2 个“八度+半音”组合），名字互不相同，
+        // 并且把"左/中/右"与组合（左+中、右+中）说清楚（用户不懂左/中/右的含义）
         std::string modeNames[hp::kPlayModeCount];
-        bool modesOk = hp::kPlayModeCount == 4;
+        bool modesOk = hp::kPlayModeCount == 6;
         for (int i = 0; i < hp::kPlayModeCount; ++i) {
             modeNames[i] = hp::ui::PlayModeButtonName(static_cast<hp::PlayMode>(i));
             modesOk = modesOk && !modeNames[i].empty();
@@ -662,12 +670,18 @@ void RunBeatMathTest() {
                 modesOk = modesOk && modeNames[i] != modeNames[j];
             }
         }
-        Check(modesOk, "4 个演奏方式按钮名字互不相同");
+        Check(modesOk, "6 个演奏方式按钮名字互不相同");
         Check(modeNames[0].find("本音") != std::string::npos &&
                   modeNames[1].find("左") != std::string::npos &&
                   modeNames[2].find("中") != std::string::npos &&
                   modeNames[3].find("右") != std::string::npos,
               "演奏方式名字点明 本音/左/中/右");
+        // 组合模式必须两个键的名字都出现，否则用户只会按一个键（音就不对了）
+        Check(modeNames[4].find("左") != std::string::npos &&
+                  modeNames[4].find("中") != std::string::npos &&
+                  modeNames[5].find("右") != std::string::npos &&
+                  modeNames[5].find("中") != std::string::npos,
+              "组合模式名字点明 左键+中键 / 右键+中键：" + modeNames[4] + " / " + modeNames[5]);
 
         // 时值按钮：一拍 / 两拍 / 半拍 / 休止一拍——拍数必须对得起名字，休止只有一个
         Check(hp::ui::kDurationChoiceCount == 4, "时值 4 档");
