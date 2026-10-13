@@ -392,7 +392,7 @@ LRESULT CALLBACK SettingsWindow::HotkeyFieldProc(HWND hwnd, UINT msg, WPARAM wpa
     if (isHotkeyField || isIgnoreField) {
         if (msg == WM_GETDLGCODE) {
             // 连 Tab / Enter / Esc / 方向键都算合法热键，所以全都截下来
-            return DLGC_WANTALLKEYS;
+            return DLGC_WANTALLKEYS | DLGC_WANTTAB;
         }
         if (msg == WM_CHAR || msg == WM_SYSCHAR || msg == WM_PASTE || msg == WM_CUT || msg == WM_CLEAR) {
             HideCaret(hwnd);
@@ -438,9 +438,13 @@ void SettingsWindow::OnCapturedKey(HWND field, unsigned vk, bool forIgnoreList) 
         SetMessage("这个键被输入法吃掉了，请再按一次。", true);
         return;
     }
-    if (vk == VK_CONTROL || vk == VK_SHIFT || vk == VK_MENU || vk == VK_LWIN || vk == VK_RWIN ||
-        vk == VK_LCONTROL || vk == VK_RCONTROL || vk == VK_LSHIFT || vk == VK_RSHIFT ||
-        vk == VK_LMENU || vk == VK_RMENU || vk == 0xFF) {
+    if (vk == 0xFF) {
+        return;
+    }
+    // 单独按修饰键：热键字段不算设定（等用户按主键）；排除键位字段是单键语义，要放行。
+    if (!forIgnoreList && (vk == VK_CONTROL || vk == VK_SHIFT || vk == VK_MENU || vk == VK_LWIN ||
+                           vk == VK_RWIN || vk == VK_LCONTROL || vk == VK_RCONTROL ||
+                           vk == VK_LSHIFT || vk == VK_RSHIFT || vk == VK_LMENU || vk == VK_RMENU)) {
         SetMessage("请连主键一起按（例如 F5、Ctrl+Shift+F9）；光按 Ctrl / Shift / Alt / Win 不算。", false);
         return;
     }
