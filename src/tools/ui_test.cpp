@@ -263,8 +263,14 @@ void RunSettingsTest() {
               defaults.nextHotkey == "F10",
           "默认热键 F6 / F7 / F8 + 换曲 F9 / F10");
     Check(std::fabs(defaults.speed - 1.0) < 1e-9, "默认速度 100%");
-    Check(defaults.monitorKeyboard && defaults.monitorMouseButtons && !defaults.monitorMouseMove,
-          "默认输入监控：键盘开、鼠标键开、鼠标移动关（与 Phase 6 一致）");
+    Check(defaults.monitorKeyboard && defaults.monitorMouseButtons && !defaults.monitorMouseMove &&
+              defaults.stopOnMouseWheel,
+          "默认输入监控：键盘开、鼠标键开、鼠标移动关、鼠标滚轮开（Phase 6 + 滚轮打断演奏）");
+    const std::string settingsDetail = defaults.DetailText();
+    const size_t guardLine = settingsDetail.find("用户输入急停");
+    Check(settingsDetail.find("鼠标滚轮") != std::string::npos,
+          "设置详情里有鼠标滚轮这一项（新设置项 stopOnMouseWheel 默认开）；详情：" +
+              ((guardLine == std::string::npos) ? settingsDetail : settingsDetail.substr(guardLine)));
     Check(defaults.foregroundPolicy == hp::ui::ForegroundPolicy::Pause,
           "默认前台窗口策略 = 暂停（四十二节：默认建议停止或暂停）");
 
@@ -459,6 +465,7 @@ void RunLabelTest() {
         {"分组：状态", hp::ui::labels::kGroupStatus},
         {"分组：音符表", hp::ui::labels::kGroupNotes},
         {"分组：用户输入急停", hp::ui::labels::kGroupInputGuard},
+        {"鼠标滚轮复选框", hp::ui::labels::kMouseWheelGuard},
         {"分组：前台窗口变化", hp::ui::labels::kGroupForeground},
         {"分组：全局热键", hp::ui::labels::kGroupHotkeys},
         {"分组：播放选项", hp::ui::labels::kGroupPlaybackOpt},
@@ -481,6 +488,11 @@ void RunLabelTest() {
     Check(hp::ui::ContainsEmoji("播放 ▶"), "守卫能识别 ▶（U+25B6 装饰符号）");
     Check(hp::ui::ContainsEmoji("完成 ✓"), "守卫能识别 ✓");
     Check(!hp::ui::ContainsEmoji("演奏中"), "中文不会被误判为 emoji");
+
+    // 新复选框（鼠标滚轮打断演奏）：文案必须存在、是中文、且提到滚轮
+    Check(hp::ui::labels::kMouseWheelGuard != nullptr &&
+              std::string(hp::ui::labels::kMouseWheelGuard).find("滚轮") != std::string::npos,
+          std::string("新复选框文案存在且提到滚轮：") + hp::ui::labels::kMouseWheelGuard);
 
     for (const auto& item : all) {
         Note(item.first + "：" + item.second);

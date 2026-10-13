@@ -83,7 +83,8 @@ std::string AppSettings::DetailText() const {
                                       : "精确");
     text += "\n用户输入急停：键盘 " + std::string(monitorKeyboard ? "开" : "关") + "　鼠标按键 " +
             std::string(monitorMouseButtons ? "开" : "关") + "　鼠标移动 " +
-            std::string(monitorMouseMove ? "开" : "关");
+            std::string(monitorMouseMove ? "开" : "关") + "　鼠标滚轮 " +
+            std::string(stopOnMouseWheel ? "开" : "关");
     text += "\n前台窗口变化：" + std::string(ForegroundPolicyName(foregroundPolicy));
     text += "\n最近曲谱：" + (songPath.empty() ? std::string("（还没打开过）") : songPath);
     return text;
@@ -382,6 +383,7 @@ const char* kGroupPlayback = "播放控制";
 const char* kGroupStatus = "状态";
 const char* kGroupNotes = "音符表";
 const char* kGroupInputGuard = "用户输入急停";
+const char* kMouseWheelGuard = "鼠标滚轮也能打断演奏（上滚 / 下滚都算）";
 const char* kGroupForeground = "前台窗口变化";
 const char* kGroupHotkeys = "全局热键";
 const char* kBpmPrefix = "BPM：";

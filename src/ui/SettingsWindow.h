@@ -79,6 +79,7 @@ private:
     HWND keyGuard_ = nullptr;
     HWND mouseButtonGuard_ = nullptr;
     HWND mouseMoveGuard_ = nullptr;
+    HWND mouseWheelGuard_ = nullptr;   // 鼠标滚轮打断演奏（默认勾选）
     HWND speedLabel_ = nullptr;
     HWND speedCombo_ = nullptr;   // Phase 8：六档预置 + 自定义
     HWND speedEdit_ = nullptr;

@@ -280,6 +280,65 @@ void RunClassifierTest(hp::InputMonitor& monitor) {
     Check(monitor.Stats().injectedIgnored == before.injectedIgnored + 2 &&
               monitor.Stats().triggered == before.triggered,
           "只带 HPLY 标记的事件也被忽略（第二道保险有效）");
+
+    // ---- 鼠标滚轮（独立分类 + 能触发急停，全部非注入）----
+    // 滚轮消息（WM_MOUSEWHEEL / WM_MOUSEHWHEEL）在 MSLLHOOKSTRUCT 里**没有按键位**，
+    // 所以它必须是独立的一类：靠“没有按键位”判断会把滚轮误当成鼠标移动。
+    // 这里喂真实形状事件（injected = false），走的是与真实钩子完全相同的分发路径。
+    const hp::InputMonitorStats beforeWheel = monitor.Stats();
+
+    hp::RawHookEvent wheelUp;
+    wheelUp.kind = hp::UserInputKind::Wheel;
+    wheelUp.wheelDelta = WHEEL_DELTA;   // +120 = 上滚
+    wheelUp.injected = false;
+    wheelUp.tick = GetTickCount64();
+    monitor.ProcessRawEventForTest(wheelUp);
+    const hp::UserInputEvent lastWheelUp = monitor.LastEvent();
+    Check(monitor.Stats().triggered == beforeWheel.triggered + 1 &&
+              lastWheelUp.kind == hp::UserInputKind::Wheel,
+          std::string("真实滚轮上滚归成独立的一类并触发急停（类=") +
+              hp::UserInputKindName(lastWheelUp.kind) + "，原因文本=" + lastWheelUp.name + "）");
+
+    hp::RawHookEvent wheelDown;
+    wheelDown.kind = hp::UserInputKind::Wheel;
+    wheelDown.wheelDelta = -WHEEL_DELTA;   // -120 = 下滚
+    wheelDown.injected = false;
+    wheelDown.tick = GetTickCount64();
+    monitor.ProcessRawEventForTest(wheelDown);
+    const hp::UserInputEvent lastWheelDown = monitor.LastEvent();
+    Check(monitor.Stats().triggered == beforeWheel.triggered + 2 &&
+              lastWheelDown.kind == hp::UserInputKind::Wheel &&
+              lastWheelDown.name != lastWheelUp.name,
+          "真实滚轮下滚同样触发急停（上/下滚都算，原因文本=" + lastWheelDown.name + "）");
+
+    // 注入的滚轮：必须被忽略（十六节：工具自己的输入不能把自己停掉）
+    const bool sawRealBeforeInjectedWheel = monitor.SawRealUserInput();
+    hp::RawHookEvent injectedWheel;
+    injectedWheel.kind = hp::UserInputKind::Wheel;
+    injectedWheel.wheelDelta = WHEEL_DELTA;
+    injectedWheel.injected = true;
+    injectedWheel.tick = GetTickCount64();
+    monitor.ProcessRawEventForTest(injectedWheel);
+    Check(monitor.Stats().injectedIgnored == beforeWheel.injectedIgnored + 1 &&
+              monitor.Stats().triggered == beforeWheel.triggered + 2 &&
+              monitor.SawRealUserInput() == sawRealBeforeInjectedWheel,
+          "注入的滚轮被忽略、不触发急停、也不算'见过真人输入'（注入计数 " +
+              std::to_string(beforeWheel.injectedIgnored) + " → " +
+              std::to_string(monitor.Stats().injectedIgnored) + "）");
+
+    // 可配置：关掉滚轮开关后，真实滚轮不再打断演奏（测完恢复现场）
+    {
+        const hp::InputMonitorOptions saved = monitor.Options();
+        hp::InputMonitorOptions noWheel = saved;
+        noWheel.mouseWheel = false;
+        monitor.SetOptions(noWheel);
+        const hp::InputMonitorStats offBefore = monitor.Stats();
+        monitor.ProcessRawEventForTest(wheelUp);
+        Check(monitor.Stats().triggered == offBefore.triggered &&
+                  monitor.Stats().disabledIgnored == offBefore.disabledIgnored + 1,
+              "设置里关掉鼠标滚轮后，真实滚轮不再触发急停（开关可配置）");
+        monitor.SetOptions(saved);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +362,11 @@ void RunInjectedInputTest(hp::InputMonitor& monitor, TestContext& context, bool 
     }
 
     const hp::InputMonitorStats before = monitor.Stats();
+    // 这个标志是"粘性"的（一旦见过真实输入就永久为真），所以只能断言"这次注入没有让它变化"。
+    // 不能写成 !SawRealUserInput()：--all 里前面的分类用例会喂真实形状的滚轮事件（那是设计如此），
+    // 那种写法会假失败。真正证明"注入被忽略"的是下面几条：忽略计数上升、触发次数不变、
+    // 回调一次没被调、播放器还在跑。
+    const bool sawRealBeforeInjection = monitor.SawRealUserInput();
     Note("在演奏中进行注入（F13/F14/F15，任何程序都不会响应，也不打扰任何窗口）");
     InjectHarmlessKeys(6);
     Sleep(200);
@@ -317,7 +381,8 @@ void RunInjectedInputTest(hp::InputMonitor& monitor, TestContext& context, bool 
     Check(after.triggered == before.triggered, "注入没有触发任何一次急停");
     Check(context.triggers.load() == 0, "急停回调一次都没被调用");
     Check(player.IsPlaying(), "播放器还在正常演奏（没有自己把自己停掉）");
-    Check(!monitor.SawRealUserInput(), "监控没有把它当成真人输入");
+    Check(monitor.SawRealUserInput() == sawRealBeforeInjection,
+          "注入没有改到'见过真人输入'这个标志（注入永远走不到那一步）");
     Check(player.FiredNoteCount() > 0, "演奏确实在推进（已起音 " +
                                           std::to_string(player.FiredNoteCount()) + " 个）");
 
@@ -948,7 +1013,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (HasFlag(args, "--list")) {
-        Note("默认设置：键盘按键 开　鼠标按键 开　鼠标移动 关（需求书二十五节）");
+        Note("默认设置：键盘按键 开　鼠标按键 开　鼠标移动 关　鼠标滚轮 开（需求书二十五节 + 滚轮打断演奏）");
         Note("注入判据：LLKHF_INJECTED / LLMHF_INJECTED 标志，或 dwExtraInfo = 0x48504C59 (HPLY)");
         Note("停止原因文本：\"检测到用户输入：<键名>\"（需求书二十六节）");
         return 0;

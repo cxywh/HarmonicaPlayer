@@ -11,7 +11,9 @@
 //   十七节 用 WH_KEYBOARD_LL，检查事件来源：程序注入 → 忽略；真实按键 → 急停
 //   十八节 刚按下的启动热键要忽略（否则一按 F6 开始就立刻被自己停掉）
 //   二十节 与播放线程的竞态：钩子回调只管"喊停"，"停干净"由播放器的发送锁保证
-//   二十五节 鼠标按键也应该能触发（默认开）；鼠标移动默认不触发（太灵敏）
+//   二十五节 鼠标按键也应该能触发（默认开）；鼠标移动默认不触发（太灵敏）；
+//          鼠标滚轮独立分类（WM_MOUSEWHEEL / WM_MOUSEHWHEEL），默认也触发急停，
+//          钩子照旧原样放行（不吞滚轮），只做“判断 + 喊停”。
 //   二十六节 停止原因要能显示"检测到用户输入：Space"
 //   三十八节 线程架构：Input Monitor 是独立的一条线程 + 消息循环
 //
@@ -54,7 +56,7 @@ public:
     bool IsRunning() const { return running_.load(); }
     unsigned long MonitorThreadId() const { return threadId_.load(); }
 
-    // 设置（二十五节的三个开关）。默认：键盘开、鼠标键开、鼠标移动关。
+    // 设置（二十五节的四个开关）。默认：键盘开、鼠标键开、鼠标移动关、鼠标滚轮开。
     void SetOptions(const InputMonitorOptions& options);
     InputMonitorOptions Options() const;
 
@@ -102,6 +104,7 @@ private:
     std::atomic<bool> optKeyboard_{true};
     std::atomic<bool> optMouseButtons_{true};
     std::atomic<bool> optMouseMove_{false};
+    std::atomic<bool> optMouseWheel_{true};   // 鼠标滚轮触发急停（默认开）
 
     std::thread thread_;
     std::atomic<bool> running_{false};
@@ -125,6 +128,7 @@ private:
     std::atomic<int> lastKind_{0};
     std::atomic<unsigned> lastVk_{0};
     std::atomic<int> lastButton_{0};
+    std::atomic<int> lastWheelDelta_{0};   // 最近一次滚轮的方向（只给 LastEvent 用）
     std::atomic<unsigned long long> lastTick_{0};
     std::atomic<bool> lastInjected_{false};
 };

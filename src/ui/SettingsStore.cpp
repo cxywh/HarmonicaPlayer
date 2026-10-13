@@ -187,6 +187,7 @@ std::string SettingsToJson(const AppSettings& settings) {
     root["monitorKeyboard"] = settings.monitorKeyboard;
     root["monitorMouseButtons"] = settings.monitorMouseButtons;
     root["monitorMouseMove"] = settings.monitorMouseMove;
+    root["stopOnMouseWheel"] = settings.stopOnMouseWheel;
     root["foregroundPolicy"] = ForegroundPolicyJsonName(settings.foregroundPolicy);
     root["runAsAdmin"] = settings.runAsAdmin;
     root["exclusiveHotkeys"] = settings.exclusiveHotkeys;
@@ -237,6 +238,10 @@ SettingsLoadResult SettingsFromJson(const AppSettings& defaults, const std::stri
     ReadField(root, "monitorMouseButtons", loaded.monitorMouseButtons,
               defaults.monitorMouseButtons, result.warnings);
     ReadField(root, "monitorMouseMove", loaded.monitorMouseMove, defaults.monitorMouseMove,
+              result.warnings);
+    // 鼠标滚轮打断演奏（默认开）。读不出来 / 类型不对走 ReadField 的通用逻辑：
+    // 回默认值，并把**字段名**写进警告文案（例如“配置项 stopOnMouseWheel 读不出来，已用默认值”）。
+    ReadField(root, "stopOnMouseWheel", loaded.stopOnMouseWheel, defaults.stopOnMouseWheel,
               result.warnings);
     ReadField(root, "songPath", loaded.songPath, defaults.songPath, result.warnings);
 

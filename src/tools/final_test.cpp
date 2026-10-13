@@ -788,6 +788,7 @@ void RunConfig() {
     custom.jitterMs = 4.5;
     custom.monitorKeyboard = false;
     custom.monitorMouseMove = true;
+    custom.stopOnMouseWheel = false;   // 新增字段：滚轮打断演奏（默认是 true，这里测非默认值往返）
     custom.foregroundPolicy = hp::ui::ForegroundPolicy::Stop;
     custom.songPath = "D:\\曲谱\\测试.json";
 
@@ -803,6 +804,7 @@ void RunConfig() {
            std::fabs(roundTrip.settings.jitterMs - custom.jitterMs) < 1e-9 &&
            roundTrip.settings.monitorKeyboard == custom.monitorKeyboard &&
            roundTrip.settings.monitorMouseMove == custom.monitorMouseMove &&
+           roundTrip.settings.stopOnMouseWheel == custom.stopOnMouseWheel &&
            roundTrip.settings.foregroundPolicy == custom.foregroundPolicy &&
            roundTrip.settings.songPath == custom.songPath;
     Check(same, "配置序列化 → 反序列化逐字段一致（且没有多余警告）");
@@ -828,6 +830,16 @@ void RunConfig() {
               !wrongType.warnings.empty(),
           "字段类型不对时回默认值并给警告（" + std::to_string(wrongType.warnings.size()) +
               " 条警告）");
+
+    // 新增字段：鼠标滚轮打断演奏（stopOnMouseWheel）。读不出来时必须回默认值，
+    // 且警告文案要点名**这个字段**（字段名写错的告警等于没告警）。
+    const hp::ui::SettingsLoadResult wheelBad =
+        hp::ui::SettingsFromJson(defaults, "{\n  \"stopOnMouseWheel\": \"开\"\n}\n");
+    Check(wheelBad.ok && wheelBad.settings.stopOnMouseWheel == defaults.stopOnMouseWheel &&
+              !wheelBad.warnings.empty() &&
+              wheelBad.warnings[0].find("stopOnMouseWheel") != std::string::npos,
+          "配置项 stopOnMouseWheel 读不出来时回默认值并点名该字段： " +
+              (wheelBad.warnings.empty() ? std::string("（没有警告）") : wheelBad.warnings[0]));
 
     // 坏 JSON / 空文件：报中文原因，不崩
     const hp::ui::SettingsLoadResult broken =

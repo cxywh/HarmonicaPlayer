@@ -22,6 +22,10 @@ enum class UserInputKind : int {
     KeyDown = 0,         // 键盘按下（含系统键，例如 Alt 组合）
     MouseButtonDown = 1, // 鼠标左 / 中 / 右键按下
     MouseMove = 2,       // 鼠标移动（默认不触发急停，二十五节）
+    // 鼠标滚轮（WM_MOUSEWHEEL / WM_MOUSEHWHEEL）：独立分类。
+    // 单独成一类是必须的：滚轮消息在 MSLLHOOKSTRUCT 里**没有按键位**（鼠标键状态与
+    // mouseData 里的滚动量是两回事），只看“有没有按键位”会把滚轮误判成鼠标移动。
+    Wheel = 3,
 };
 
 const char* UserInputKindName(UserInputKind kind);
@@ -34,6 +38,7 @@ struct RawHookEvent {
     bool keyUp = false;                  // 键盘抬起（十五节只要按下，抬起不触发）
     unsigned vk = 0;                     // 键盘虚拟键码
     MouseButton button = MouseButton::Left;   // 仅鼠标事件有意义
+    int wheelDelta = 0;                  // 仅滚轮事件有意义：>0 上滚 / 右滚，<0 下滚 / 左滚
     bool injected = false;               // LLKHF_INJECTED / LLMHF_INJECTED
     unsigned long long extraInfo = 0;    // 注入标记（本工具是 0x48504C59 "HPLY"）
     unsigned long long tick = 0;         // 事件到达的时刻（GetTickCount64）
@@ -52,12 +57,15 @@ struct UserInputEvent {
 };
 
 // ---------------------------------------------------------------------------
-// 设置（需求书二十五节的三项开关）
+// 设置（需求书二十五节的开关：现在是四项）
 // ---------------------------------------------------------------------------
 struct InputMonitorOptions {
     bool keyboard = true;        // 键盘按键触发急停（十五节）
     bool mouseButtons = true;    // 鼠标左/中/右键触发急停（二十五节）
     bool mouseMove = false;      // 鼠标移动：默认关闭（二十五节明确要求）
+    // 鼠标滚轮：默认**开启**。对应设置项 AppSettings::stopOnMouseWheel / JSON 键
+    // "stopOnMouseWheel"。滚轮会照原样放行给游戏（钩子不吞事件），这里只管“要不要急停”。
+    bool mouseWheel = true;
 };
 
 // ---------------------------------------------------------------------------
@@ -65,7 +73,7 @@ struct InputMonitorOptions {
 // ---------------------------------------------------------------------------
 struct InputMonitorStats {
     long long keyboardEvents = 0;     // 钩子看到的键盘事件总数（含注入与抬起）
-    long long mouseEvents = 0;        // 钩子看到的鼠标事件总数
+    long long mouseEvents = 0;        // 钩子看到的鼠标事件总数（含移动、按键、滚轮）
     long long injectedIgnored = 0;    // 因为"是注入的"被忽略（十六节）
     long long keyUpIgnored = 0;       // 抬起事件不触发（十五节只要按下）
     long long moveIgnored = 0;        // 鼠标移动被忽略（默认关闭）

@@ -34,6 +34,7 @@ constexpr int kIdPauseHotkey = 2100;   // 新开一段编号：2001-2031 已经�
 constexpr int kIdKeyGuard = 2101;
 constexpr int kIdMouseButtonGuard = 2102;
 constexpr int kIdMouseMoveGuard = 2103;
+constexpr int kIdMouseWheelGuard = 2108;   // 复选框：鼠标滚轮也能打断演奏（默认开）
 constexpr int kIdSpeed = 2007;
 constexpr int kIdSpeedCombo = 2021;   // Phase 8：50/75/100/125/150/200% 六档 + 自定义
 constexpr int kIdDryRun = 2008;
@@ -62,7 +63,7 @@ const wchar_t* kGroupForeground = L"前台窗口变化";
 const wchar_t* kGroupIgnoreKeys = L"排除键位（按下不打断演奏）";
 const wchar_t* kIgnoreLabel = L"按键添加：";
 const wchar_t* kIgnoreHint =
-    L"列表里的键按下时不会打断演奏（游戏里的走路 / 跳跃键放这里）；\n鼠标键用上面的复选框。";
+    L"列表里的键按下时不会打断演奏（游戏里的走路 / 跳跃键放这里）；\n鼠标键、鼠标滚轮也用上面的复选框（滚轮默认就是打断演奏的）。";
 const wchar_t* kHotkeyPlay = L"播放：";
 const wchar_t* kHotkeyPause = L"暂停：";
 const wchar_t* kHotkeyStop = L"停止：";
@@ -116,8 +117,9 @@ bool SettingsWindow::Create(HINSTANCE instance, std::string* error) {
     }
 
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VSCROLL;
-    // 客户区高度按内容算：4 个分组（各 28+24*3+12 = 112 DIP）+ 组间距 14*4 + 底部按钮区 86
-    // = 606 DIP，取 620 留一点余量；尺寸固定，不允许拉伸（拉扁了单选按钮会跑出窗口）
+    // 客户区高度按内容算（用户输入急停分组现在是 4 行：键盘 / 鼠标按键 / 鼠标移动 / 鼠标滚轮）
+    // = 620 DIP 上下，取 620 留一点余量；尺寸固定，不允许拉伸（拉扁了单选按钮会跑出窗口）。
+    // 真正的页面高度由 App 用主窗口客户区高度告知（SetPageClientHeight），放不下的靠滚动条看。
     RECT rect{0, 0, S(560), S(620)};
     AdjustWindowRectForDpi(rect, style, false);
     hwnd_ = CreateWindowExW(WS_EX_TOOLWINDOW, kWindowClass, L"设置", style, CW_USEDEFAULT,
@@ -342,6 +344,8 @@ void SettingsWindow::CreateChildren() {
     keyGuard_ = makeCheck(kKeyGuardText, kIdKeyGuard);
     mouseButtonGuard_ = makeCheck(kMouseButtonText, kIdMouseButtonGuard);
     mouseMoveGuard_ = makeCheck(kMouseMoveText, kIdMouseMoveGuard);
+    // 文案取自 labels（ui_test 的“禁 emoji / 中文”守卫要扫得到这一条）
+    mouseWheelGuard_ = makeCheck(Utf8ToWide(labels::kMouseWheelGuard).c_str(), kIdMouseWheelGuard);
     dryRunCheck_ = makeCheck(kDryRunText, kIdDryRun);
     naturalCheck_ = makeCheck(kNaturalText, kIdNatural);
     runAsAdminCheck_ = makeCheck(kRunAsAdminText, kIdRunAsAdmin);
@@ -606,7 +610,7 @@ void SettingsWindow::Layout() {
     // 一组的高度 = 组头 + 行数 * 行距 - 最后一个行间距 + 组尾
     auto groupHeight = [&](int rows) { return groupHead + rows * rowsUnit - S(4) + groupFoot; };
     const int hotkeyHeight = groupHeight(6);
-    const int guardHeight = groupHeight(3);
+    const int guardHeight = groupHeight(4);   // +1 行：鼠标滚轮打断演奏
     const int playbackHeight = groupHeight(5);   // +1 行：热键独占
     const int foregroundHeight = groupHeight(3);
 
@@ -646,12 +650,15 @@ void SettingsWindow::Layout() {
     move(mouseButtonGuard_, rowLeft, rowY, fullRow, rowHeight);
     rowY += rowsUnit;
     move(mouseMoveGuard_, rowLeft, rowY, fullRow, rowHeight);
+    rowY += rowsUnit;
+    move(mouseWheelGuard_, rowLeft, rowY, fullRow, rowHeight);
     y += guardHeight + groupGap;
 
     // 排除键位：一行输入（按下即添加）+ 列表 + 两个按钮 + 提示
     const int ignoreListHeight = S(72);
-    const int ignoreHeight =
-        groupHead + rowsUnit * 3 - S(4) + groupFoot + (ignoreListHeight - rowsUnit) + S(18);
+    const int ignoreHintHeight = S(54);   // 提示加了一句（鼠标滚轮），给三行高，别截字
+    const int ignoreHeight = groupHead + rowsUnit * 3 - S(4) + groupFoot +
+                             (ignoreListHeight - rowsUnit) + S(18) + (ignoreHintHeight - S(36));
     ignoreGroup_ = RECT{margin, y, width - margin, y + ignoreHeight};
     rowY = y + groupHead;
     move(ignoreKeyLabel_, rowLeft, rowY + (rowHeight - labelHeight) / 2, labelWidth, labelHeight);
@@ -661,7 +668,7 @@ void SettingsWindow::Layout() {
     rowY += rowsUnit;
     move(ignoreList_, rowLeft, rowY, fullRow, ignoreListHeight);
     rowY += ignoreListHeight;
-    move(ignoreHint_, rowLeft, rowY + S(2), fullRow, S(36));   // 两行：句子长，一行放不下
+    move(ignoreHint_, rowLeft, rowY + S(2), fullRow, ignoreHintHeight);   // 句子长，留三行
     y += ignoreHeight + groupGap;
 
     // 播放选项
@@ -950,6 +957,7 @@ void SettingsWindow::FillControls(const AppSettings& settings) {
     check(keyGuard_, settings.monitorKeyboard);
     check(mouseButtonGuard_, settings.monitorMouseButtons);
     check(mouseMoveGuard_, settings.monitorMouseMove);
+    check(mouseWheelGuard_, settings.stopOnMouseWheel);
     check(dryRunCheck_, settings.dryRun);
     check(naturalCheck_, settings.naturalMode);
     check(runAsAdminCheck_, settings.runAsAdmin);
@@ -1004,6 +1012,7 @@ bool SettingsWindow::ReadControls(AppSettings& out, std::string& error) {
     out.monitorKeyboard = SendMessageW(keyGuard_, BM_GETCHECK, 0, 0) == BST_CHECKED;
     out.monitorMouseButtons = SendMessageW(mouseButtonGuard_, BM_GETCHECK, 0, 0) == BST_CHECKED;
     out.monitorMouseMove = SendMessageW(mouseMoveGuard_, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    out.stopOnMouseWheel = SendMessageW(mouseWheelGuard_, BM_GETCHECK, 0, 0) == BST_CHECKED;
     out.dryRun = SendMessageW(dryRunCheck_, BM_GETCHECK, 0, 0) == BST_CHECKED;
     out.naturalMode = SendMessageW(naturalCheck_, BM_GETCHECK, 0, 0) == BST_CHECKED;
     out.runAsAdmin = SendMessageW(runAsAdminCheck_, BM_GETCHECK, 0, 0) == BST_CHECKED;
@@ -1053,7 +1062,7 @@ void SettingsWindow::ApplyDpi(unsigned dpi) {
     RebuildUiFonts();
     RebuildThemeBrushes();
     HWND controls[] = {playLabel_, pauseLabel_, stopLabel_, restartLabel_, previousLabel_, nextLabel_, playHotkey_, pauseHotkey_, stopHotkey_, restartHotkey_, previousHotkey_, nextHotkey_, ignoreKeyLabel_, ignoreKeyField_, ignoreList_, ignoreRemoveButton_, ignoreClearButton_, ignoreHint_, keyGuard_, mouseButtonGuard_,
-                       mouseMoveGuard_, speedEdit_, speedCombo_, speedHint_, dryRunCheck_, naturalCheck_,
+                       mouseMoveGuard_, mouseWheelGuard_, speedEdit_, speedCombo_, speedHint_, dryRunCheck_, naturalCheck_,
                        runAsAdminCheck_, exclusiveHotkeysCheck_, elevateButton_, foregroundIgnore_,
                        foregroundPause_, foregroundStop_, applyButton_, cancelButton_,
                        defaultButton_, messageLabel_, hintLabel_};

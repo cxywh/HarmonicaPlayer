@@ -23,6 +23,14 @@ std::string ToMillisecondsText(long long nanoseconds) {
     return std::string(buffer);
 }
 
+// 滚轮事件的显示名（二十六节的停止原因要能读懂是哪个方向）
+//   delta < 0 = 朝用户方向滚（下滚）；>= 0 = 朝远离用户方向滚（上滚）。
+//   水平滚轮（WM_MOUSEHWHEEL）没有单独的文案，按同一个“上滚 / 下滚”报，
+//   避免再分出一类只在极少数鼠标上出现的事件。
+std::string WheelEventName(int delta) {
+    return (delta < 0) ? std::string("鼠标滚轮下滚") : std::string("鼠标滚轮上滚");
+}
+
 }  // namespace
 
 const char* UserInputKindName(UserInputKind kind) {
@@ -33,6 +41,8 @@ const char* UserInputKindName(UserInputKind kind) {
             return "鼠标按键";
         case UserInputKind::MouseMove:
             return "鼠标移动";
+        case UserInputKind::Wheel:
+            return "鼠标滚轮";
         default:
             return "未知输入";
     }
@@ -78,6 +88,7 @@ bool InputMonitor::Start(const InputMonitorOptions& options, const InputMonitorC
         optKeyboard_.store(options.keyboard);
         optMouseButtons_.store(options.mouseButtons);
         optMouseMove_.store(options.mouseMove);
+        optMouseWheel_.store(options.mouseWheel);
     }
     quit_.store(false);
     SetInstance(this);
@@ -150,7 +161,7 @@ void InputMonitor::ThreadMain() {
             startError_ = "装键盘钩子失败（错误码 " + std::to_string(GetLastError()) + "）";
         }
     }
-    if (startError_.empty() && (optMouseButtons_.load() || optMouseMove_.load())) {
+    if (startError_.empty() && (optMouseButtons_.load() || optMouseMove_.load() || optMouseWheel_.load())) {
         mouseHook = SetWindowsHookExW(WH_MOUSE_LL, &InputMonitor::MouseProc, module, 0);
         if (mouseHook == nullptr) {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -250,8 +261,22 @@ LRESULT CALLBACK InputMonitor::MouseProc(int code, WPARAM wParam, LPARAM lParam)
                 case WM_MOUSEMOVE:
                     raw.kind = UserInputKind::MouseMove;
                     break;
+                case WM_MOUSEWHEEL:
+                case WM_MOUSEHWHEEL:
+                    // 滚轮：独立分类（不是移动、也不是按键）。
+                    // 滚轮消息在 MSLLHOOKSTRUCT 里**没有按键位**：mouseData 的高字放的是
+                    // 滚动量，所以不能靠“有没有按键按下”去判断，必须按消息号单独归一类。
+                    // >= 120（WHEEL_DELTA 的整数倍）上滚，负数下滚。
+                    raw.kind = UserInputKind::Wheel;
+                    raw.wheelDelta =
+                        static_cast<int>(static_cast<short>(HIWORD(data->mouseData)));
+                    if (raw.wheelDelta == 0) {
+                        // 兜底：个别驱动把滚动量只放在 wParam 里
+                        raw.wheelDelta = static_cast<int>(static_cast<short>(HIWORD(wParam)));
+                    }
+                    break;
                 default:
-                    // 抬起、滚轮等：不参与急停（二十五节只要按键按下）
+                    // 抬起（WM_LBUTTONUP 等）：不参与急停（二十五节只要按下）
                     relevant = false;
                     break;
             }
@@ -266,6 +291,8 @@ LRESULT CALLBACK InputMonitor::MouseProc(int code, WPARAM wParam, LPARAM lParam)
             }
         }
     }
+    // 无论是哪一类事件（含滚轮）：**原样放行**给后面的钩子 / 游戏。
+    // 本钩子只做“分类 + 判断 + 喊停”，从不吞事件，所以滚轮该怎么滚还怎么滚。
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
@@ -273,7 +300,8 @@ LRESULT CALLBACK InputMonitor::MouseProc(int code, WPARAM wParam, LPARAM lParam)
 // 唯一的分类与分发路径（真实钩子与自检都走它）
 // ---------------------------------------------------------------------------
 void InputMonitor::ProcessEvent(const RawHookEvent& raw) {
-    if (raw.kind == UserInputKind::MouseMove || raw.kind == UserInputKind::MouseButtonDown) {
+    if (raw.kind == UserInputKind::MouseMove || raw.kind == UserInputKind::MouseButtonDown ||
+        raw.kind == UserInputKind::Wheel) {
         mouseEvents_.fetch_add(1);
     } else {
         keyboardEvents_.fetch_add(1);
@@ -306,6 +334,12 @@ void InputMonitor::ProcessEvent(const RawHookEvent& raw) {
             return;
         }
     }
+    // 滚轮（二十五节 + 用户要求）：默认开。关掉时与键盘/鼠标按键一样记在
+    // disabledIgnored_（“这一类在设置里被关掉”）。
+    if (raw.kind == UserInputKind::Wheel && !optMouseWheel_.load()) {
+        disabledIgnored_.fetch_add(1);
+        return;
+    }
 
     UserInputEvent event;
     event.kind = raw.kind;
@@ -322,6 +356,9 @@ void InputMonitor::ProcessEvent(const RawHookEvent& raw) {
             break;
         case UserInputKind::MouseMove:
             event.name = "鼠标移动";
+            break;
+        case UserInputKind::Wheel:
+            event.name = WheelEventName(raw.wheelDelta);
             break;
         default:
             event.name = "未知输入";
@@ -345,6 +382,7 @@ void InputMonitor::ProcessEvent(const RawHookEvent& raw) {
     lastKind_.store(static_cast<int>(event.kind));
     lastVk_.store(event.vk);
     lastButton_.store(static_cast<int>(event.button));
+    lastWheelDelta_.store(raw.wheelDelta);
     lastTick_.store(event.tick);
     lastInjected_.store(event.injected);
     sawRealInput_.store(true);
@@ -384,6 +422,7 @@ void InputMonitor::SetOptions(const InputMonitorOptions& options) {
     optKeyboard_.store(options.keyboard);
     optMouseButtons_.store(options.mouseButtons);
     optMouseMove_.store(options.mouseMove);
+    optMouseWheel_.store(options.mouseWheel);
 }
 
 InputMonitorOptions InputMonitor::Options() const {
@@ -391,6 +430,7 @@ InputMonitorOptions InputMonitor::Options() const {
     options.keyboard = optKeyboard_.load();
     options.mouseButtons = optMouseButtons_.load();
     options.mouseMove = optMouseMove_.load();
+    options.mouseWheel = optMouseWheel_.load();
     return options;
 }
 
@@ -418,6 +458,8 @@ std::string InputMonitor::DescribeOptions() const {
     text += options.mouseButtons ? "开" : "关";
     text += "　鼠标移动 ";
     text += options.mouseMove ? "开（不推荐：鼠标一动就停）" : "关（默认）";
+    text += "　鼠标滚轮 ";
+    text += options.mouseWheel ? "开（默认）" : "关";
     return text;
 }
 
@@ -462,6 +504,9 @@ UserInputEvent InputMonitor::LastEvent() const {
             break;
         case UserInputKind::MouseMove:
             event.name = "鼠标移动";
+            break;
+        case UserInputKind::Wheel:
+            event.name = WheelEventName(lastWheelDelta_.load());
             break;
         default:
             event.name = "未知输入";

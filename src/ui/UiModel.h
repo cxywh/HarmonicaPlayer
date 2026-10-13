@@ -61,6 +61,10 @@ struct AppSettings {
     bool monitorKeyboard = true;        // Phase 6 三项开关
     bool monitorMouseButtons = true;
     bool monitorMouseMove = false;
+    // 鼠标滚轮也能打断演奏（用户要求，默认开启）：滚轮消息是独立一类，
+    // 上下滚都算。字段名与 JSON 键固定为 stopOnMouseWheel。滚轮事件照旧放行给游戏，
+    // 这里只决定“要不要急停”。
+    bool stopOnMouseWheel = true;
 
     // 排除键位（Phase 13 追加）：这些键按下时**不**触发"用户输入急停"。
     // 游戏里的走路 / 跳跃 / 切枪键放进来，演奏就不会被打断。
@@ -220,6 +224,9 @@ extern const char* kGroupPlayback;     // 分组标题：播放控制
 extern const char* kGroupStatus;       // 分组标题：状态
 extern const char* kGroupNotes;        // 分组标题：音符表
 extern const char* kGroupInputGuard;   // 分组标题：用户输入急停
+// 用户输入急停分组里的第四个复选框（鼠标滚轮打断演奏，默认开）。
+// 文案放在这里是为了让 ui_test 的“禁 emoji / 中文”守卫能扫到它。
+extern const char* kMouseWheelGuard;
 extern const char* kGroupForeground;   // 分组标题：前台窗口变化
 extern const char* kGroupHotkeys;      // 分组标题：全局热键
 extern const char* kGroupPlaybackOpt;  // 分组标题：播放选项

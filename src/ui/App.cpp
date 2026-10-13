@@ -416,6 +416,7 @@ bool App::Initialize(HINSTANCE instance, std::string* error) {
     monitorOptions.keyboard = settings_.monitorKeyboard;
     monitorOptions.mouseButtons = settings_.monitorMouseButtons;
     monitorOptions.mouseMove = settings_.monitorMouseMove;
+    monitorOptions.mouseWheel = settings_.stopOnMouseWheel;   // 滚轮打断演奏（默认开）
     InputMonitorCallbacks callbacks;
     callbacks.onUserInput = [this](const UserInputEvent& event) { OnUserInput(event); };
     callbacks.shouldIgnore = [this](const UserInputEvent& event) { return ShouldIgnoreUserInput(event); };
@@ -1112,6 +1113,7 @@ std::string App::ApplySettings(const AppSettings& settings) {
         options.keyboard = settings.monitorKeyboard;
         options.mouseButtons = settings.monitorMouseButtons;
         options.mouseMove = settings.monitorMouseMove;
+        options.mouseWheel = settings.stopOnMouseWheel;
         monitor_->SetOptions(options);
     }
 
