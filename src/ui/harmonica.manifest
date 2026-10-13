@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="HarmonicaPlayer.App" version="0.7.0.0"
+  <assemblyIdentity type="win32" name="HarmonicaPlayer.App" version="2.0.0.0"
                     processorArchitecture="amd64"/>
   <description>Harmonica Player - in-game harmonica auto player</description>
   <!-- 公共控件 v6：ListView 等控件用现代外观（需要 InitCommonControlsEx） -->
