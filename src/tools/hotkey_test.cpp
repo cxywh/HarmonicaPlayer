@@ -223,6 +223,14 @@ void RunParseTest() {
     Section("绑定解析与显示");
 
     Check(hp::DefaultHotkey(hp::HotkeyAction::Play).ToString() == "Num5", "默认「播放 / 开始」= Num5");
+    {   // 排除键位必须能认单独的修饰键 / 锁定键（用户要求）
+        unsigned probeVk = 0;
+        Check(hp::ParseIgnoredKey("Ctrl", probeVk, nullptr) && probeVk == VK_CONTROL, "排除键 Ctrl 可解析");
+        Check(hp::ParseIgnoredKey("Shift", probeVk, nullptr) && probeVk == VK_SHIFT, "排除键 Shift 可解析");
+        Check(hp::ParseIgnoredKey("Alt", probeVk, nullptr) && probeVk == VK_MENU, "排除键 Alt 可解析");
+        Check(hp::ParseIgnoredKey("CapsLock", probeVk, nullptr) && probeVk == VK_CAPITAL, "排除键 CapsLock 可解析");
+        Check(hp::ParseIgnoredKey("Tab", probeVk, nullptr) && probeVk == VK_TAB, "排除键 Tab 可解析");
+    }
     Check(hp::DefaultHotkey(hp::HotkeyAction::Pause).ToString() == "Num6", "默认「暂停 / 继续」= Num6");
     // ---- Phase 13：排除键位（按下不打断演奏）----
     {
