@@ -150,22 +150,22 @@ HotkeyBinding DefaultHotkey(HotkeyAction action) {
     HotkeyBinding binding;
     switch (action) {
         case HotkeyAction::Play:
-            binding.vk = VK_F6;   // 需求书第十三节：F6 = 播放 / 开始
+            binding.vk = VK_NUMPAD5;   // 需求书第十三节：F6 = 播放 / 开始
             break;
         case HotkeyAction::Stop:
-            binding.vk = VK_F7;   // F7 = 停止
+            binding.vk = VK_NUMPAD4;   // F7 = 停止
             break;
         case HotkeyAction::Restart:
-            binding.vk = VK_F8;   // F8 = 从头开始
+            binding.vk = VK_NUMPAD0;   // F8 = 从头开始
             break;
         case HotkeyAction::Previous:
-            binding.vk = VK_F9;   // F9 = 上一首（新增，可改键）
+            binding.vk = VK_UP;   // F9 = 上一首（新增，可改键）
             break;
         case HotkeyAction::Next:
-            binding.vk = VK_F10;  // F10 = 下一首（新增，可改键）
+            binding.vk = VK_DOWN;  // F10 = 下一首（新增，可改键）
             break;
         case HotkeyAction::Pause:
-            binding.vk = VK_F5;   // F5 = 暂停 / 继续（后加的，可改键）
+            binding.vk = VK_NUMPAD6;   // F5 = 暂停 / 继续（后加的，可改键）
             break;
         default:
             binding.vk = 0;
