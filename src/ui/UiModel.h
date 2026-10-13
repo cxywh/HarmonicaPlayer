@@ -39,12 +39,12 @@ inline ForegroundPolicy DefaultForegroundPolicy() { return ForegroundPolicy::Pau
 // 设置（存内存；落盘属 Phase 11）
 // ---------------------------------------------------------------------------
 struct AppSettings {
-    std::string playHotkey = "F6";
-    std::string pauseHotkey = "F5";   // 暂停 / 继续
-    std::string stopHotkey = "F7";
-    std::string restartHotkey = "F8";
-    std::string previousHotkey = "F9";     // 演奏中切上一首
-    std::string nextHotkey = "F10";        // 演奏中切下一首
+    std::string playHotkey = "Num5";
+    std::string pauseHotkey = "Num6";   // 暂停 / 继续
+    std::string stopHotkey = "Num4";
+    std::string restartHotkey = "Num0";
+    std::string previousHotkey = "Up";     // 演奏中切上一首
+    std::string nextHotkey = "Down";        // 演奏中切下一首
 
     // 热键是否"独占"（默认 false = 放行模式）：
     //   false 放行：用低层钩子认热键，**不吞键**——工具切歌的同时游戏照样收到这个键；
@@ -64,17 +64,17 @@ struct AppSettings {
     // 鼠标滚轮也能打断演奏（用户要求，默认开启）：滚轮消息是独立一类，
     // 上下滚都算。字段名与 JSON 键固定为 stopOnMouseWheel。滚轮事件照旧放行给游戏，
     // 这里只决定“要不要急停”。
-    bool stopOnMouseWheel = true;
+    bool stopOnMouseWheel = false;
 
     // 排除键位（Phase 13 追加）：这些键按下时**不**触发"用户输入急停"。
     // 游戏里的走路 / 跳跃 / 切枪键放进来，演奏就不会被打断。
-    std::vector<std::string> ignoredKeys;
+    std::vector<std::string> ignoredKeys = {"W", "A", "S", "D", "Q", "E", "Space"};
 
     ForegroundPolicy foregroundPolicy = ForegroundPolicy::Pause;
 
     // 游戏以管理员身份运行时，普通权限的进程发不出按键（UIPI 拦截）：
     // 勾上它，启动时就自动向系统申请管理员权限（弹一次 UAC），一次选择以后都省事
-    bool runAsAdmin = false;
+    bool runAsAdmin = true;
 
     std::string songPath;               // 最近一次打开的曲谱文件
 

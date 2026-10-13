@@ -790,6 +790,7 @@ void RunConfig() {
     custom.monitorMouseMove = true;
     custom.stopOnMouseWheel = false;   // 新增字段：滚轮打断演奏（默认是 true，这里测非默认值往返）
     custom.foregroundPolicy = hp::ui::ForegroundPolicy::Stop;
+    custom.songPath = "D:\\曲谱\\测试.json";
 
     const std::string json = hp::ui::SettingsToJson(custom);
     const hp::ui::SettingsLoadResult roundTrip = hp::ui::SettingsFromJson(defaults, json);
@@ -805,7 +806,7 @@ void RunConfig() {
            roundTrip.settings.monitorMouseMove == custom.monitorMouseMove &&
            roundTrip.settings.stopOnMouseWheel == custom.stopOnMouseWheel &&
            roundTrip.settings.foregroundPolicy == custom.foregroundPolicy &&
-           roundTrip.settings.songPath.empty();   // songPath 不再落盘，往返后必须为空
+           roundTrip.settings.songPath == custom.songPath;
     Check(same, "配置序列化 → 反序列化逐字段一致（且没有多余警告）");
     Say("配置 JSON：" + std::to_string(json.size()) + " 字节，顶层 " +
         std::to_string(std::count(json.begin(), json.end(), '\n')) + " 行");

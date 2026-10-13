@@ -191,6 +191,7 @@ std::string SettingsToJson(const AppSettings& settings) {
     root["foregroundPolicy"] = ForegroundPolicyJsonName(settings.foregroundPolicy);
     root["runAsAdmin"] = settings.runAsAdmin;
     root["exclusiveHotkeys"] = settings.exclusiveHotkeys;
+    root["songPath"] = settings.songPath;
     root["ignoredKeys"] = settings.ignoredKeys;   // 数组：排除键位
     return root.dump(2) + "\n";
 }
@@ -242,6 +243,7 @@ SettingsLoadResult SettingsFromJson(const AppSettings& defaults, const std::stri
     // 回默认值，并把**字段名**写进警告文案（例如“配置项 stopOnMouseWheel 读不出来，已用默认值”）。
     ReadField(root, "stopOnMouseWheel", loaded.stopOnMouseWheel, defaults.stopOnMouseWheel,
               result.warnings);
+    ReadField(root, "songPath", loaded.songPath, defaults.songPath, result.warnings);
 
     const auto policy = root.find("foregroundPolicy");
     if (policy == root.end()) {

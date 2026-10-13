@@ -390,6 +390,30 @@ std::string HotkeyHelpText() {
 }
 
 bool ParseIgnoredKey(const std::string& text, unsigned& vk, std::string* error) {
+    // 单独的修饰键/锁定键也能进排除列表（ctrl / shift / alt / capslock / tab 等）
+    {
+        std::string t;
+        t.reserve(text.size());
+        for (char ch : text) {
+            t.push_back(static_cast<char>((ch >= 'a' && ch <= 'z') ? ch - 'a' + 'A' : ch));
+        }
+        const size_t b = t.find_first_not_of(" \t");
+        const size_t e = t.find_last_not_of(" \t");
+        t = (b == std::string::npos) ? std::string() : t.substr(b, e - b + 1);
+        static const struct { const char* name; unsigned vk; } kStandalone[] = {
+            {"CTRL", VK_CONTROL},   {"CONTROL", VK_CONTROL}, {"SHIFT", VK_SHIFT},   {"ALT", VK_MENU},
+            {"CAPSLOCK", VK_CAPITAL}, {"CAPS", VK_CAPITAL},  {"TAB", VK_TAB},       {"SPACE", VK_SPACE},
+            {"ENTER", VK_RETURN},   {"RETURN", VK_RETURN},   {"ESC", VK_ESCAPE},    {"ESCAPE", VK_ESCAPE},
+            {"BACKSPACE", VK_BACK}, {"LWIN", VK_LWIN},       {"RWIN", VK_RWIN},     {"WIN", VK_LWIN},
+            {"APPS", VK_APPS},
+        };
+        for (const auto& entry : kStandalone) {
+            if (t == entry.name) {
+                vk = entry.vk;
+                return true;
+            }
+        }
+    }
     HotkeyBinding binding;
     std::string parseError;
     if (!ParseHotkey(text, binding, &parseError)) {

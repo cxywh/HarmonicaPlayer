@@ -257,14 +257,14 @@ void RunSettingsTest() {
     Section("设置与前台窗口策略（四十二节）");
 
     const hp::ui::AppSettings defaults;
-    Check(defaults.ignoredKeys.empty(), "排除键位默认是空的（所有键都会打断演奏）");
-    Check(defaults.playHotkey == "F6" && defaults.pauseHotkey == "F5" && defaults.stopHotkey == "F7" &&
-              defaults.restartHotkey == "F8" && defaults.previousHotkey == "F9" &&
-              defaults.nextHotkey == "F10",
-          "默认热键 F6 / F7 / F8 + 换曲 F9 / F10");
+    Check(defaults.ignoredKeys.size() == 7, "排除键位默认含 W A S D Q E 空格（用户当前设置）");
+    Check(defaults.playHotkey == "Num5" && defaults.pauseHotkey == "Num6" && defaults.stopHotkey == "Num4" &&
+              defaults.restartHotkey == "Num0" && defaults.previousHotkey == "Up" &&
+              defaults.nextHotkey == "Down",
+          "默认热键 Num5 / Num6 / Num4 / Num0 + 换曲 Up / Down（用户当前设置）");
     Check(std::fabs(defaults.speed - 1.0) < 1e-9, "默认速度 100%");
     Check(defaults.monitorKeyboard && defaults.monitorMouseButtons && !defaults.monitorMouseMove &&
-              defaults.stopOnMouseWheel,
+              !defaults.stopOnMouseWheel,
           "默认输入监控：键盘开、鼠标键开、鼠标移动关、鼠标滚轮开（Phase 6 + 滚轮打断演奏）");
     const std::string settingsDetail = defaults.DetailText();
     const size_t guardLine = settingsDetail.find("用户输入急停");
