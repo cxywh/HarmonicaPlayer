@@ -429,8 +429,21 @@ bool ParseIgnoredKey(const std::string& text, unsigned& vk, std::string* error) 
         return false;
     }
     if (binding.modifiers != kModifierNone) {
+        // 排除列表是单键语义：单独按 Ctrl/Shift/Alt/Win 时这里只有修饰位（vk 可能是 0，
+        // 也可能就是那个修饰键本身），按它自己收下；带别的实键的组合仍然拒绝。
+        const unsigned mods = binding.modifiers;
+        const bool modifierKey = (binding.vk == 0 || binding.vk == VK_CONTROL || binding.vk == VK_LCONTROL ||
+                                  binding.vk == VK_RCONTROL || binding.vk == VK_SHIFT || binding.vk == VK_LSHIFT ||
+                                  binding.vk == VK_RSHIFT || binding.vk == VK_MENU || binding.vk == VK_LMENU ||
+                                  binding.vk == VK_RMENU || binding.vk == VK_LWIN || binding.vk == VK_RWIN);
+        if (modifierKey) {
+            if ((mods & ~kModifierCtrl) == 0) { vk = VK_CONTROL; return true; }
+            if ((mods & ~kModifierShift) == 0) { vk = VK_SHIFT; return true; }
+            if ((mods & ~kModifierAlt) == 0) { vk = VK_MENU; return true; }
+            if ((mods & ~kModifierWin) == 0) { vk = VK_LWIN; return true; }
+        }
         if (error != nullptr) {
-            *error = "排除键只认单个键，不带 Ctrl / Alt / Shift / Win";
+            *error = "排除键只认单个键，不带 Ctrl / Alt / Shift / Win（收到的写法：" + text + "）";
         }
         return false;
     }
