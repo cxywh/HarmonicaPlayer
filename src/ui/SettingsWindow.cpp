@@ -516,7 +516,7 @@ void SettingsWindow::BeginCapture(HWND field, bool ignoreField) {
     // 清空框：用户点进来就是"要重设"，空框 + 提示比留着旧值更好懂
     SetWindowTextW(field, L"");
     if (ignoreField) {
-        SetMessage("现在按下要排除的键（单个键，不带 Ctrl / Alt / Shift / Win）。", false);
+        SetMessage("现在按下要排除的键（单键；Ctrl、Shift、Alt、CapsLock、Tab 这类也能单独按）。", false);
     } else {
         SetMessage("现在按下你想用的键就设好了；按 Delete = 取消绑定（none）。录键期间原来的热键会让位。",
                    false);
