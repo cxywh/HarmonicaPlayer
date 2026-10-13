@@ -460,15 +460,8 @@ void SettingsWindow::OnCapturedKey(HWND field, unsigned vk, bool forIgnoreList) 
     }
 
     if (forIgnoreList) {
-        // 单独按下 Ctrl / Shift / Alt / Win 也要能进排除列表：此时 modifiers 里只有它自己，不该拒绝
-        const bool standaloneModifier = (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL ||
-                                         vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT ||
-                                         vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
-                                         vk == VK_LWIN || vk == VK_RWIN);
-        if (modifiers != kModifierNone && !standaloneModifier) {
-            SetMessage("排除键只认单个键（不带 Ctrl / Alt / Shift / Win）。", true);
-            return;
-        }
+        // 排除列表是单键语义：按哪个键就加哪个键。
+        // 单独按 Ctrl / Shift / Alt / Win 时 modifiers 里正好是它自己，早先这里会误判成组合键而拒绝。
         std::string message;
         unsigned ignoreVk = vk;   // 左右修饰键归一到通用 VK，名字才是 Ctrl / Shift / Alt
         if (ignoreVk == VK_LCONTROL || ignoreVk == VK_RCONTROL) {
