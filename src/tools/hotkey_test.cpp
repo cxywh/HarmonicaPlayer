@@ -222,8 +222,8 @@ void CheckInjectionClean(const std::string& what) {
 void RunParseTest() {
     Section("绑定解析与显示");
 
-    Check(hp::DefaultHotkey(hp::HotkeyAction::Play).ToString() == "Num5", "默认「播放 / 开始」= F6");
-    Check(hp::DefaultHotkey(hp::HotkeyAction::Pause).ToString() == "Num6", "默认「暂停 / 继续」= F5");
+    Check(hp::DefaultHotkey(hp::HotkeyAction::Play).ToString() == "F6", "默认「播放 / 开始」= F6");
+    Check(hp::DefaultHotkey(hp::HotkeyAction::Pause).ToString() == "F5", "默认「暂停 / 继续」= F5");
     // ---- Phase 13：排除键位（按下不打断演奏）----
     {
         unsigned vk = 0;
@@ -257,8 +257,8 @@ void RunParseTest() {
               "Sanitize 清掉脏项与重复项（剩 " + std::to_string(dirty.size()) + " 个，丢 " +
                   std::to_string(dropped) + " 个）");
     }
-    Check(hp::DefaultHotkey(hp::HotkeyAction::Stop).ToString() == "Num4", "默认「停止」= F7");
-    Check(hp::DefaultHotkey(hp::HotkeyAction::Restart).ToString() == "Num0", "默认「从头开始」= F8");
+    Check(hp::DefaultHotkey(hp::HotkeyAction::Stop).ToString() == "F7", "默认「停止」= F7");
+    Check(hp::DefaultHotkey(hp::HotkeyAction::Restart).ToString() == "F8", "默认「从头开始」= F8");
 
     struct ParseCase {
         const char* text;
