@@ -9,6 +9,7 @@
 //   4. 全部状态由互斥量保护，可被 UI 线程 / 播放线程 / 急停线程并发调用。
 
 #include <array>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -63,6 +64,18 @@ public:
     static bool IsExtendedVirtualKey(unsigned short vk);
 
     // ---------------------------------------------------------------------
+    // 自检专用（不注入任何真实输入）：与 MouseController 完全同构的两件替身。
+    //   默认没有替身 → 走 SendInput / GetAsyncKeyState，生产行为一字不变。
+    //   ① EventSink：逐事件记录输入层**实际发出的**按下/抬起（取证用，不碰系统）；
+    //   ② PhysicalProbe：模拟“我们刚发出的事件还没反映到 GetAsyncKeyState”的窗口。
+    // ---------------------------------------------------------------------
+    using EventSink = std::function<bool(Key key, bool keyDown)>;
+    using PhysicalProbe = std::function<bool(Key key)>;
+    void SetEventSink(EventSink sink);
+    void SetPhysicalProbe(PhysicalProbe probe);
+    void ClearTestHooks();
+
+    // ---------------------------------------------------------------------
     // 自检专用：模拟"人手按键"（例如 F6 这种全局热键，或 Ctrl+Shift+F9 这种组合键）。
     //   - 只用于验证"全局热键 / 输入监控"这类由**用户按键**触发的功能；
     //   - 它们不是口琴的 8 个音调键，不参与 Player-owned 追踪
@@ -90,11 +103,17 @@ public:
 private:
     // 真正构造并投递一个 INPUT 结构。调用者必须已持有 mtx_。
     bool SendKeyEventLocked(Key key, bool keyDown);
+    bool PhysicalStateLocked(Key key) const;
     void ClearStateLocked(int index);
 
     mutable std::mutex mtx_;
     std::array<bool, kKeyCount> playerDown_{};          // 工具自己按下的键
     std::array<bool, kKeyCount> preHeldByUser_{};        // 我们按下之前该键已被用户按住（这类键不补 KeyUp，铁律②）
+    // 我们自己发过事件、系统物理状态可能还没落地的窗口（同 MouseController）：
+    // 窗口内读到的“按下”不能算成用户的，否则永远不补 KeyUp，键会卡在按下。
+    std::array<bool, kKeyCount> ourDownUnsettled_{};
+    EventSink eventSink_;                               // 自检替身①：见上面的说明
+    PhysicalProbe physicalProbe_;                        // 自检替身②：见上面的说明
     InputSendOptions options_{};
     bool lastFailed_ = false;
     unsigned long lastError_ = 0;

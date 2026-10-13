@@ -636,6 +636,649 @@ void RunLoadFileTest(const std::string& path, bool injectInput) {
 }
 
 // -----------------------------------------------------------------------------
+// 8. 记录式输入替身：音符边界不变量（不注入任何按键）
+// -----------------------------------------------------------------------------
+// 为什么要有这一段（这次“右键一直被按住”就是从这里漏掉的）：
+//   SongPlayer 的干跑（options.dryRun）在按下音符**之前**就 return 了 —— 它根本不碰输入层，
+//   所以输入层里“演奏方式（鼠标键）按下 / 抬起”那套账本从来没在自检里跑过；
+//   而干跑唯一的断言是“整曲结束之后没有残留”，查不出**中途**某个音符把鼠标键一直按着
+//   （整曲结束时的兜底 ReleaseAll 会把账本清空，账面看起来永远是干净的）。
+//   这里改成：不注入任何真实输入，但真的走输入层的按下 / 抬起路径（记录式替身），
+//   把每个事件按发出顺序记下来，于是可以在**每个音符边界**上检查：
+//       工具实际被按住的键 / 鼠标键集合 ⊆ 当前音符需要的集合
+//   这正是铁律「不留下被按住的键」在音符粒度上的表述。
+
+struct RecordedEvent {
+    int seq = 0;                 // 事件序号（从 1 开始，按发出顺序）
+    bool keyboard = false;
+    int index = 0;               // Key 或 MouseButton 的编号
+    bool down = false;
+    std::string name;
+    int noteIndex = -1;          // 发出这条事件时，最近一个“按下完成”的音符序号（-1 = 还没有）
+    std::string downSet;         // 这条事件生效后，工具实际按住的键/鼠标键
+};
+
+struct BoundaryMark {
+    int noteIndex = 0;
+    std::string noteText;
+    std::string requiredText;
+    std::string actualText;
+    bool ok = false;
+    size_t eventCount = 0;       // 记录到这里为止的事件条数
+};
+
+// 记录式替身：键盘 + 鼠标共用（都只在播放线程上顺序调用，加锁是为了自检读的时候安全）
+class Recorder {
+public:
+    void Reset(bool staleReads) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        staleReads_ = staleReads;
+        events_.clear();
+        marks_.clear();
+        keyDown_.fill(false);
+        mouseDown_.fill(false);
+        keyPrev_.fill(false);
+        mousePrev_.fill(false);
+        currentNote_ = -1;
+        nextSeq_ = 1;
+        worstLatenessMs_ = 0.0;
+    }
+
+    // ---- 替身①：输入层**实际发出**的事件（记下来，不碰系统） ----
+    bool OnMouse(hp::MouseButton button, bool buttonDown) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const int i = static_cast<int>(button);
+        if (i < 0 || i >= hp::kMouseButtonCount) {
+            return false;
+        }
+        mousePrev_[i] = mouseDown_[i];
+        mouseDown_[i] = buttonDown;
+        PushLocked(false, i, buttonDown, hp::MouseButtonDisplayName(button));
+        return true;
+    }
+
+    bool OnKey(hp::Key key, bool keyDown) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const int i = static_cast<int>(key);
+        if (i < 0 || i >= hp::kKeyCount) {
+            return false;
+        }
+        keyPrev_[i] = keyDown_[i];
+        keyDown_[i] = keyDown;
+        PushLocked(true, i, keyDown, hp::KeyDisplayName(key));
+        return true;
+    }
+
+    // ---- 替身②：系统此刻（GetAsyncKeyState）看到的状态 ----
+    //   staleReads = true：模拟“我们刚发出的那个事件还没反映到系统状态里”
+    //     （SendInput 只是把事件排进系统输入队列）。真实环境里右手的按下/抬起挨得极近时
+    //     就是这个窗口 —— 它正是这次右键卡死的触发点，这里把它变成确定可复现的输入。
+    bool MouseView(hp::MouseButton button) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const int i = static_cast<int>(button);
+        if (i < 0 || i >= hp::kMouseButtonCount) {
+            return false;
+        }
+        return staleReads_ ? mousePrev_[i] : mouseDown_[i];
+    }
+
+    bool KeyView(hp::Key key) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const int i = static_cast<int>(key);
+        if (i < 0 || i >= hp::kKeyCount) {
+            return false;
+        }
+        return staleReads_ ? keyPrev_[i] : keyDown_[i];
+    }
+
+    // ---- 音符边界不变量：由 NoteObserver 在“这个音符按下完成”之后调用 ----
+    //   被按住的集合必须 ⊆ 这个音符需要的集合（它的键 + 它演奏方式要按的鼠标键）。
+    void BeginNote(int noteIndex, const hp::Note& note, double latenessSeconds) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        currentNote_ = noteIndex;
+        worstLatenessMs_ = std::max(worstLatenessMs_, std::fabs(latenessSeconds) * 1000.0);
+
+        BoundaryMark mark;
+        mark.noteIndex = noteIndex;
+        mark.noteText = std::string(hp::KeyName(note.key)) + "/" + hp::PlayModeName(note.mode);
+        mark.requiredText = RequiredTextLocked(note);
+        mark.actualText = DownSetLocked();
+        mark.ok = true;
+
+        for (int i = 0; i < hp::kKeyCount; ++i) {
+            if (keyDown_[i] && i != static_cast<int>(note.key)) {
+                mark.ok = false;
+            }
+        }
+        hp::MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int count = hp::MouseButtonsOf(note.mode, buttons);
+        for (int i = 0; i < hp::kMouseButtonCount; ++i) {
+            if (!mouseDown_[i]) {
+                continue;
+            }
+            bool allowed = false;
+            for (int b = 0; b < count; ++b) {
+                if (static_cast<int>(buttons[b]) == i) {
+                    allowed = true;
+                }
+            }
+            if (!allowed) {
+                mark.ok = false;
+            }
+        }
+        mark.eventCount = events_.size();
+        marks_.push_back(mark);
+    }
+
+    // ---- 自检查询 ----
+    size_t EventCount() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return events_.size();
+    }
+
+    std::vector<RecordedEvent> Events() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return events_;
+    }
+
+    std::vector<BoundaryMark> Marks() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return marks_;
+    }
+
+    int BoundaryChecks() const { return static_cast<int>(Marks().size()); }
+    double WorstLatenessMs() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return worstLatenessMs_;
+    }
+    int BoundaryViolations() const {
+        int bad = 0;
+        for (const BoundaryMark& mark : Marks()) {
+            if (!mark.ok) {
+                ++bad;
+            }
+        }
+        return bad;
+    }
+
+    std::string ViolationText() const {
+        std::string text;
+        for (const BoundaryMark& mark : Marks()) {
+            if (mark.ok) {
+                continue;
+            }
+            text += "\n      第 " + std::to_string(mark.noteIndex + 1) + " 个音符（" + mark.noteText +
+                    "）按下完成后，实际被按住的是「" + mark.actualText + "」，" +
+                    "但它需要的集合只有「" + mark.requiredText + "」——上一个演奏方式的鼠标键没抬干净。";
+        }
+        return text;
+    }
+
+    // 结束时还被按住的键 / 鼠标键（由事件流推导，不看账本）——铁律①的直接判据
+    std::string ResidualText() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return DownSetLocked();
+    }
+
+    int ResidualCount() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        int count = 0;
+        for (bool down : keyDown_) {
+            if (down) {
+                ++count;
+            }
+        }
+        for (bool down : mouseDown_) {
+            if (down) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    // 只发过按下、再没抬起过的事件（“到底哪一步漏了 UP”的答案）
+    std::string UnmatchedDownText() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::string text;
+        for (size_t e = 0; e < events_.size(); ++e) {
+            const RecordedEvent& event = events_[e];
+            if (!event.down) {
+                continue;
+            }
+            bool matched = false;
+            for (size_t f = e + 1; f < events_.size(); ++f) {
+                if (events_[f].keyboard == event.keyboard && events_[f].index == event.index &&
+                    !events_[f].down) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                text += "\n      第 " + std::to_string(event.seq) + " 条事件「" + event.name +
+                        " 按下」之后再没有对应的抬起（音符序号 " +
+                        (event.noteIndex >= 0 ? std::to_string(event.noteIndex + 1) : std::string("-")) +
+                        "）";
+            }
+        }
+        return text;
+    }
+
+    // 两个音符之间输入层发出了几条**鼠标**事件（用来证明“同一 mode 连续时保持按住”这个优化还在：
+    // 该窗口里应当是 0 条 —— 既没有抬起、也没有重复按下）
+    int MouseEventsBetween(size_t markA, size_t markB) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (markA >= marks_.size() || markB >= marks_.size() || markB <= markA) {
+            return 0;
+        }
+        int count = 0;
+        for (size_t i = marks_[markA].eventCount; i < marks_[markB].eventCount && i < events_.size(); ++i) {
+            if (!events_[i].keyboard) {
+                ++count;
+            }
+        }
+        return count;
+    }
+private:
+    void PushLocked(bool keyboard, int index, bool down, const std::string& name) {
+        RecordedEvent event;
+        event.seq = nextSeq_++;
+        event.keyboard = keyboard;
+        event.index = index;
+        event.down = down;
+        event.name = name;
+        event.noteIndex = currentNote_;
+        event.downSet = DownSetLocked();
+        events_.push_back(event);
+    }
+
+    std::string DownSetLocked() const {
+        std::string text;
+        for (int i = 0; i < hp::kKeyCount; ++i) {
+            if (!keyDown_[i]) {
+                continue;
+            }
+            if (!text.empty()) {
+                text += ", ";
+            }
+            text += hp::KeyDisplayName(static_cast<hp::Key>(i));
+        }
+        for (int i = 0; i < hp::kMouseButtonCount; ++i) {
+            if (!mouseDown_[i]) {
+                continue;
+            }
+            if (!text.empty()) {
+                text += ", ";
+            }
+            text += hp::MouseButtonDisplayName(static_cast<hp::MouseButton>(i));
+        }
+        return text.empty() ? std::string("-") : text;
+    }
+
+    std::string RequiredTextLocked(const hp::Note& note) const {
+        std::string text = hp::KeyDisplayName(note.key);
+        hp::MouseButton buttons[hp::kMaxMouseButtonsPerMode] = {};
+        const int count = hp::MouseButtonsOf(note.mode, buttons);
+        for (int i = 0; i < count; ++i) {
+            text += ", ";
+            text += hp::MouseButtonDisplayName(buttons[i]);
+        }
+        return text;
+    }
+
+    mutable std::mutex mutex_;
+    bool staleReads_ = false;
+    std::array<bool, hp::kKeyCount> keyDown_{};
+    std::array<bool, hp::kMouseButtonCount> mouseDown_{};
+    std::array<bool, hp::kKeyCount> keyPrev_{};        // “最近一条事件生效之前”的状态
+    std::array<bool, hp::kMouseButtonCount> mousePrev_{};
+    std::vector<RecordedEvent> events_;
+    std::vector<BoundaryMark> marks_;
+    int currentNote_ = -1;
+    int nextSeq_ = 1;
+    double worstLatenessMs_ = 0.0;
+};
+
+struct BoundaryRun {
+    int fired = 0;
+    int noteCount = 0;
+    int boundaryChecks = 0;
+    int boundaryViolations = 0;
+    int residual = 0;
+    double worstLatenessMs = 0.0;
+    hp::StopReason stopReason = hp::StopReason::None;
+    std::string statusText;
+    std::string progressText;
+    std::string residualText;
+    std::string violationText;
+    std::string unmatchedText;
+    std::vector<RecordedEvent> events;
+    std::vector<BoundaryMark> marks;
+};
+
+// 用“记录式替身”演奏一首曲子：不注入，但真的走输入层的按下 / 抬起路径。
+BoundaryRun RunSongWithRecorder(const hp::Song& song, bool staleReads) {
+    BoundaryRun run;
+    const Timeline timeline = Timeline::Build(song);
+    if (timeline.Empty()) {
+        return run;
+    }
+
+    const std::shared_ptr<Recorder> recorder = std::make_shared<Recorder>();
+
+    hp::PlayerOptions options;   // 关键：dryRun = false，音符会真的走到输入层（只是被替身接管）
+    options.dryRun = false;
+    SongPlayer player(*g_input, options);
+
+    recorder->Reset(staleReads);
+    player.SetNoteObserver(
+        [recorder](int index, const hp::Note& note, double, double lateness) {
+            recorder->BeginNote(index, note, lateness);
+        });
+    g_input->Keyboard().SetEventSink([recorder](hp::Key key, bool down) {
+        return recorder->OnKey(key, down);
+    });
+    g_input->Mouse().SetEventSink([recorder](hp::MouseButton button, bool down) {
+        return recorder->OnMouse(button, down);
+    });
+    g_input->Keyboard().SetPhysicalProbe([recorder](hp::Key key) { return recorder->KeyView(key); });
+    g_input->Mouse().SetPhysicalProbe(
+        [recorder](hp::MouseButton button) { return recorder->MouseView(button); });
+
+    player.Play(timeline);
+    player.WaitForStopped(static_cast<int>(timeline.TotalDuration() * 1000.0) + 5000);
+    // 兜底释放也走替身：这一步要是还留下按键，说明兜底逻辑本身有缺口
+    g_input->ReleaseAll();
+
+    run.fired = player.FiredNoteCount();
+    run.noteCount = timeline.NoteCount();
+    run.boundaryChecks = recorder->BoundaryChecks();
+    run.boundaryViolations = recorder->BoundaryViolations();
+    run.violationText = recorder->ViolationText();
+    run.residual = recorder->ResidualCount();
+    run.residualText = recorder->ResidualText();
+    run.unmatchedText = recorder->UnmatchedDownText();
+    run.worstLatenessMs = recorder->WorstLatenessMs();
+    run.stopReason = player.LastStopReason();
+    run.statusText = player.StatusText();
+    run.progressText = player.ProgressText();
+    run.events = recorder->Events();
+    run.marks = recorder->Marks();
+
+    g_input->Keyboard().ClearTestHooks();
+    g_input->Mouse().ClearTestHooks();
+    return run;
+}
+
+// 把“输入层实际发出的按下/抬起事件”按时间顺序打出来（逐事件铁证）。
+void PrintEventTrace(const BoundaryRun& run, int limit) {
+    hp::LogPlain("  序号  事件                    发生在第几个音符之后   事件生效后被按住的键");
+    hp::LogPlain("  ----  ----------------------  ---------------------  ----------------------");
+    int printed = 0;
+    for (const RecordedEvent& event : run.events) {
+        if (limit > 0 && printed >= limit) {
+            hp::LogPlain("  ……（共 " + std::to_string(run.events.size()) + " 条事件，其余略）");
+            break;
+        }
+        const std::string noteText =
+            event.noteIndex >= 0 ? std::to_string(event.noteIndex + 1) : std::string("-");
+        hp::LogPlain("  " + std::to_string(event.seq) + std::string(event.seq < 10 ? "     " : "    ") +
+                     event.name + (event.down ? " 按下" : " 抬起") +
+                     std::string(event.name.size() < 12 ? 12 - event.name.size() : 1, ' ') + "  " +
+                     noteText + "                      " + event.downSet);
+        ++printed;
+    }
+}
+
+void PrintBoundaryMarks(const BoundaryRun& run) {
+    for (const BoundaryMark& mark : run.marks) {
+        hp::LogPlain("  第 " + std::to_string(mark.noteIndex + 1) + " 个音符（" + mark.noteText +
+                     "）按下完成：被按住「" + mark.actualText + "」" + (mark.ok ? " ⊆ " : " ⊄ ") +
+                     "需要「" + mark.requiredText + "」" + (mark.ok ? "  ✓" : "  ✗ 漏抬！"));
+    }
+}
+
+// 造一首“紧挨着”（前一个音符的结束 == 后一个音符的开始，与《父亲》的排布一致）的合成曲
+hp::Song MakeModeSong(const std::string& name,
+                      const std::vector<std::pair<hp::Key, hp::PlayMode>>& sequence,
+                      double secondsPerNote) {
+    hp::Song song;
+    song.name = name;
+    song.bpm = 60.0 / secondsPerNote;
+    song.timeSignature = hp::TimeSignature{4, 4};
+    song.beatUnit = hp::NoteValue::Quarter;
+    for (size_t i = 0; i < sequence.size(); ++i) {
+        hp::Note note;
+        note.key = sequence[i].first;
+        note.mode = sequence[i].second;
+        note.startTime = static_cast<double>(i) * secondsPerNote;
+        note.duration = secondsPerNote;
+        song.notes.push_back(note);
+    }
+    return song;
+}
+
+void RunModeBoundaryTest(bool staleReads, bool verbose) {
+    hp::LogBlank();
+    hp::LogInfo(std::string("================ 8. 音符边界不变量（记录式，不注入真实输入；") +
+                (staleReads ? "模拟系统状态还没反映刚发出的事件" : "系统状态立刻反映发出的事件") +
+                "）================");
+    hp::LogPlain("  做法：把输入层的“发送”换成记录器（一个真实输入都不注入），");
+    hp::LogPlain("        真的走 PressMode/ReleaseMode/PressKey/ReleaseKey 这条路径，");
+    hp::LogPlain("        然后在每个音符按下完成后断言：实际被按住的集合 ⊆ 这个音符需要的集合。");
+    hp::LogBlank();
+
+    struct NamedCase {
+        const char* title;
+        std::vector<std::pair<hp::Key, hp::PlayMode>> notes;
+    };
+    const std::vector<NamedCase> cases = {
+        {"Right → Normal（用户报卡住的那一句）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::Normal}}},
+        {"Normal → Right",
+         {{hp::Key::Comma, hp::PlayMode::Normal}, {hp::Key::C, hp::PlayMode::Right}}},
+        {"Left → Normal",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::X, hp::PlayMode::Left},
+          {hp::Key::C, hp::PlayMode::Normal}}},
+        {"Right → Right（同一 mode 连续：必须保持按住，不重按）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::V, hp::PlayMode::Normal}}},
+        {"LeftMiddle → Normal",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::B, hp::PlayMode::LeftMiddle},
+          {hp::Key::N, hp::PlayMode::Normal}}},
+        {"RightMiddle → Normal",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::B, hp::PlayMode::RightMiddle},
+          {hp::Key::N, hp::PlayMode::Normal}}},
+        {"Right → RightMiddle（换调式但右键要接着按住：也不能漏抬）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::RightMiddle},
+          {hp::Key::N, hp::PlayMode::Normal}}},
+        {"RightMiddle → Right（组合降回单键：中键必须抬起来）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::RightMiddle},
+          {hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::N, hp::PlayMode::Normal}}},
+        {"《父亲》高音句（真实片段：第 134–137 个音符 X/Right → C/Right → X/Right → ,/Normal）",
+         {{hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::Comma, hp::PlayMode::Normal}}},
+        {"《父亲》开头（真实片段：,/Normal → C/Right → X/Right → N/Normal）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::N, hp::PlayMode::Normal}}},
+        {"《父亲》结尾（真实片段：,/Normal → C/Right → X/Right → ,/Normal）",
+         {{hp::Key::Comma, hp::PlayMode::Normal},
+          {hp::Key::C, hp::PlayMode::Right},
+          {hp::Key::X, hp::PlayMode::Right},
+          {hp::Key::Comma, hp::PlayMode::Normal}}},
+    };
+
+    for (const NamedCase& item : cases) {
+        const hp::Song song = MakeModeSong(item.title, item.notes, 0.05);
+        const BoundaryRun run = RunSongWithRecorder(song, staleReads);
+        if (verbose) {
+            hp::LogBlank();
+            hp::LogInfo("  —— " + std::string(item.title) + " ——");
+            PrintEventTrace(run, 60);
+            hp::LogBlank();
+            PrintBoundaryMarks(run);
+            if (!run.unmatchedText.empty()) {
+                hp::LogError("      只按下、没抬起的输入：" + run.unmatchedText);
+            }
+        }
+        Check(run.fired == static_cast<int>(item.notes.size()),
+              std::string("「") + item.title + "」全部音符都起了音（" + std::to_string(run.fired) + "/" +
+                  std::to_string(item.notes.size()) + "）");
+        Check(run.boundaryViolations == 0,
+              std::string("「") + item.title + "」音符边界不变量成立（" +
+                  std::to_string(run.boundaryChecks) + " 个边界，" +
+                  std::to_string(run.boundaryViolations) + " 个违规；实际被按住 ⊆ 当前音符需要" +
+                  run.violationText + "）");
+        Check(run.residual == 0,
+              std::string("「") + item.title + "」整曲结束后没有残留按键（实际被按住「" +
+                  run.residualText + "」）" + run.unmatchedText);
+    }
+
+    // ---- 一整首混合调式的合成曲（6 种 mode 混排，60 个音符）：全程守着边界不变量 ----
+    {
+        const hp::PlayMode pattern[10] = {hp::PlayMode::Normal,   hp::PlayMode::Right,
+                                          hp::PlayMode::Right,    hp::PlayMode::Left,
+                                          hp::PlayMode::Normal,   hp::PlayMode::LeftMiddle,
+                                          hp::PlayMode::RightMiddle, hp::PlayMode::Middle,
+                                          hp::PlayMode::Normal,   hp::PlayMode::Right};
+        std::vector<std::pair<hp::Key, hp::PlayMode>> sequence;
+        for (int i = 0; i < 60; ++i) {
+            sequence.push_back({static_cast<hp::Key>(i % hp::kKeyCount), pattern[i % 10]});
+        }
+        const BoundaryRun run =
+            RunSongWithRecorder(MakeModeSong("混合调式 60 音", sequence, 0.04), staleReads);
+        hp::LogPlain("      混合调式 60 音：起音 " + std::to_string(run.fired) + "/60，边界 " +
+                     std::to_string(run.boundaryChecks) + " 个、违规 " +
+                     std::to_string(run.boundaryViolations) + " 个，结束后实际被按住「" +
+                     run.residualText + "」");
+        Check(run.fired == 60 && run.boundaryViolations == 0 && run.residual == 0,
+              "混合调式的合成曲（60 个音符、6 种演奏方式混排）每个音符边界都不留键、结束后无残留" +
+                  run.violationText + run.unmatchedText);
+    }
+
+    // ---- 六种演奏方式两两转换（36 组）：任意转换都不得漏抬 ----
+    hp::LogBlank();
+    hp::LogInfo("  —— 六种演奏方式两两转换（36 组，每组 3 个音符）——");
+    int transitionViolations = 0;
+    int transitionBoundaries = 0;
+    std::string firstBad;
+    for (int first = 0; first < hp::kPlayModeCount; ++first) {
+        for (int second = 0; second < hp::kPlayModeCount; ++second) {
+            const hp::Song song = MakeModeSong(
+                "转换 " + std::to_string(first) + "→" + std::to_string(second),
+                {{hp::Key::Z, static_cast<hp::PlayMode>(first)},
+                 {hp::Key::X, static_cast<hp::PlayMode>(second)},
+                 {hp::Key::Comma, hp::PlayMode::Normal}},
+                0.04);
+            const BoundaryRun run = RunSongWithRecorder(song, staleReads);
+            transitionBoundaries += run.boundaryChecks;
+            transitionViolations += run.boundaryViolations + (run.residual != 0 ? 1 : 0);
+            if ((run.boundaryViolations != 0 || run.residual != 0) && firstBad.empty()) {
+                firstBad = hp::PlayModeDisplayName(static_cast<hp::PlayMode>(first)) + std::string("→") +
+                           hp::PlayModeDisplayName(static_cast<hp::PlayMode>(second)) + "：" +
+                           run.violationText + run.unmatchedText;
+            }
+        }
+    }
+    hp::LogPlain("      36 组转换共 " + std::to_string(transitionBoundaries) +
+                 " 个音符边界，违规 " + std::to_string(transitionViolations) + " 个");
+    Check(transitionViolations == 0,
+          "六种演奏方式两两转换（36 组）任意转换都不得漏抬鼠标键" +
+              (firstBad.empty() ? std::string() : ("；首个失败：" + firstBad)));
+
+    // ---- “同一 mode 连续时保持按住”这个优化必须还在（不许靠“每次抬起重按”来修 bug） ----
+    {
+        std::vector<std::pair<hp::Key, hp::PlayMode>> sequence;
+        for (int i = 0; i < 8; ++i) {
+            sequence.push_back({static_cast<hp::Key>(i % hp::kKeyCount), hp::PlayMode::Right});
+        }
+        const BoundaryRun eight =
+            RunSongWithRecorder(MakeModeSong("八个连续 Right", sequence, 0.04), staleReads);
+
+        int mouseEventsInRun = 0;
+        int mouseEventsAtBoundaries = 0;
+        for (const RecordedEvent& event : eight.events) {
+            if (!event.keyboard) {
+                ++mouseEventsInRun;
+            }
+        }
+        for (size_t i = 1; i < eight.marks.size(); ++i) {
+            for (size_t e = eight.marks[i - 1].eventCount; e < eight.marks[i].eventCount &&
+                                                        e < eight.events.size();
+                 ++e) {
+                if (!eight.events[e].keyboard) {
+                    ++mouseEventsAtBoundaries;
+                }
+            }
+        }
+        hp::LogPlain("      8 个连续 Right：鼠标事件合计 " + std::to_string(mouseEventsInRun) +
+                     " 条，其中落在音符边界上的 " + std::to_string(mouseEventsAtBoundaries) +
+                     " 条（保持按住时边界上应当是 0 条）");
+        // 整曲 8 个音符全都是 Right：只该有 1 次按下 + 结束兜底 1 次抬起
+        Check(mouseEventsAtBoundaries == 0 && mouseEventsInRun <= 2,
+              "同一 mode 连续时保持按住（8 个连续 Right：边界上 0 条鼠标事件、整曲 " +
+                  std::to_string(mouseEventsInRun) + " 条，保持按住而不是每个音符抬起重按）");
+        Check(eight.boundaryViolations == 0 && eight.residual == 0,
+              "8 个连续 Right 全程没有漏抬、结束后没有残留（边界 " +
+                  std::to_string(eight.boundaryChecks) + " 个）");
+    }
+}
+
+// 用记录式替身把**整首真实曲谱**跑一遍，逐音符边界守铁律（不注入任何按键）
+void RunBoundaryFileTest(const std::string& path) {
+    hp::LogBlank();
+    hp::LogInfo("================ 8b. 整首真实曲谱的音符边界不变量（不注入）================");
+    hp::LogPlain("  文件：" + path);
+
+    Song song;
+    const SongIoResult result = hp::LoadSongFromJson(path, song);
+    if (!result.ok) {
+        Check(false, "加载失败：" + result.error);
+        return;
+    }
+    Check(true, "加载成功：" + result.Message());
+    hp::LogPlain("      " + song.Summary());
+
+    const BoundaryRun run = RunSongWithRecorder(song, true);
+    hp::LogBlank();
+    hp::LogPlain("      " + run.statusText);
+    hp::LogPlain("      " + run.progressText);
+    hp::LogPlain("      输入层实际发出的事件 " + std::to_string(run.events.size()) + " 条；" +
+                 "逐个音符边界检查了 " + std::to_string(run.boundaryChecks) + " 个");
+    Check(run.fired == run.noteCount,
+          "整首都跑完了（起音 " + std::to_string(run.fired) + "/" + std::to_string(run.noteCount) +
+              " 个音符，最大误差 " + Fmt("%.3f", run.worstLatenessMs) + " ms）");
+    Check(run.stopReason == hp::StopReason::Finished, "结束原因：歌曲播放完成");
+    Check(run.boundaryViolations == 0,
+          "整首每个音符边界都不留键（" + std::to_string(run.boundaryChecks) + " 个边界，违规 " +
+              std::to_string(run.boundaryViolations) + " 个；实际被按住 ⊆ 当前音符需要）" +
+              run.violationText);
+    Check(run.residual == 0,
+          "整首结束后没有残留按键（实际被按住「" + run.residualText + "」）" + run.unmatchedText);
+}
+
+// 记录式边界自检的完整一轮：先把“系统状态还没反映刚发出的事件”这个窗口跑一遍
+// （这次右键卡死就发生在那里），再按“状态立刻反映”跑一遍。
+void RunBoundarySuite(bool verbose) {
+    RunModeBoundaryTest(true, verbose);
+    RunModeBoundaryTest(false, false);
+}
+
+// -----------------------------------------------------------------------------
 // 菜单与命令行
 // -----------------------------------------------------------------------------
 void PrintBanner() {
@@ -672,9 +1315,10 @@ void PrintMenu() {
     hp::LogPlain("   5  导出全部内置曲   一键生成 7 个可编辑的 .json");
     hp::LogPlain("   6  打印 JSON        某首曲子的 JSON 与拍表对照");
     hp::LogPlain("   7  加载文件         读 dist\\songs\\ 里的 .json（可选真实演奏）");
+    hp::LogPlain("   8  音符边界不变量   记录式（不注入）：每个音符边界都被按住的键 ⊆ 需要的键");
     hp::LogPlain("   0  退出");
     hp::LogPlain("  ------------------------------------------------------------");
-    hp::LogPlain("   1/2/3/4/5/6 都不会注入任何按键；只有 7 里选“真实演奏”才会。");
+    hp::LogPlain("   1/2/3/4/5/6/8 都不会注入任何按键；只有 7 里选“真实演奏”才会。");
 }
 
 void PrintHelp() {
@@ -691,9 +1335,12 @@ void PrintHelp() {
     hp::LogPlain("    --save [曲名]        保存到 dist\\songs\\ 再读回（默认 C 大调音阶）");
     hp::LogPlain("    --export-all        导出全部内置曲到 dist\\songs\\");
     hp::LogPlain("    --robustness        超大 / 深嵌套 JSON 必须被拒且不崩（不注入）");
+    hp::LogPlain("    --boundary [文件]    音符边界不变量：记录式跑一遍，断言每个音符边界");
+    hp::LogPlain("                        “被按住的键 ⊆ 当前音符需要的键”（不注入任何按键）");
+    hp::LogPlain("                        带文件 = 整首真实曲谱都逐音符检查");
     hp::LogPlain("    --dump [曲名]        打印 JSON 与拍表");
     hp::LogPlain("    --list              列出 dist\\songs\\ 里的 .json");
-    hp::LogPlain("    --all               依次跑 roundtrip + example + selftest + save + export-all + robustness");
+    hp::LogPlain("    --all               依次跑 roundtrip + example + selftest + save + export-all + robustness + boundary");
     hp::LogBlank();
     hp::LogPlain("  命令（可能注入按键）：");
     hp::LogPlain("    --load <文件>        加载指定 .json 并干跑一遍");
@@ -744,7 +1391,7 @@ std::string StringOption(const std::vector<std::string>& args, const std::string
 int RunInteractiveMenu() {
     for (;;) {
         PrintMenu();
-        hp::LogInline("  请选择 [0-7]：");
+        hp::LogInline("  请选择 [0-8]：");
         std::string choice;
         if (!std::getline(std::cin, choice)) {
             break;
@@ -753,6 +1400,9 @@ int RunInteractiveMenu() {
 
         if (value == "0" || value == "q" || value == "Q") {
             break;
+        } else if (value == "8") {
+            RunBoundarySuite(true);
+            PauseForEnter();
         } else if (value == "1") {
             RunRoundTripTest();
             PauseForEnter();
@@ -871,6 +1521,14 @@ int main() {
         RunFileRoundTripTest("C 大调音阶");
         RunExportAllTest();
         RunRobustnessTest();
+        RunBoundarySuite(false);
+        exitCode = (g_failed == 0) ? 0 : 1;
+    } else if (HasFlag(args, "--boundary")) {
+        const std::string path = StringOption(args, "--boundary", "");
+        RunBoundarySuite(true);
+        if (!path.empty()) {
+            RunBoundaryFileTest(path);
+        }
         exitCode = (g_failed == 0) ? 0 : 1;
     } else if (HasFlag(args, "--load")) {
         const std::string path = StringOption(args, "--load", "");

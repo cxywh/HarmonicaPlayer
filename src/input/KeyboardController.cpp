@@ -32,12 +32,43 @@ bool KeyboardController::IsKeyPhysicallyDown(Key key) {
     return vk != 0 && IsVirtualKeyPhysicallyDown(vk);
 }
 
+bool KeyboardController::PhysicalStateLocked(Key key) const {
+    if (physicalProbe_) {
+        return physicalProbe_(key);   // 自检替身②：由测试指定“系统此刻看到的状态”
+    }
+    return IsKeyPhysicallyDown(key);
+}
+
+void KeyboardController::SetEventSink(EventSink sink) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    eventSink_ = std::move(sink);
+}
+
+void KeyboardController::SetPhysicalProbe(PhysicalProbe probe) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    physicalProbe_ = std::move(probe);
+}
+
+void KeyboardController::ClearTestHooks() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    eventSink_ = nullptr;
+    physicalProbe_ = nullptr;
+}
+
 bool KeyboardController::SendKeyEventLocked(Key key, bool keyDown) {
     const unsigned short vk = VirtualKeyOf(key);
     if (vk == 0) {
         lastFailed_ = true;
         lastError_ = ERROR_INVALID_PARAMETER;
         return false;
+    }
+
+    // 自检替身①：只把事件交给记录器，绝不碰系统（生产环境没有替身，直接往下走 SendInput）。
+    if (eventSink_) {
+        const bool ok = eventSink_(key, keyDown);
+        lastFailed_ = !ok;
+        lastError_ = ok ? 0UL : ERROR_INVALID_PARAMETER;
+        return ok;
     }
 
     INPUT input{};
@@ -168,14 +199,22 @@ bool KeyboardController::PressKey(Key key) {
         return false;
     }
 
-    // 记下：这个键在我们按下之前是不是已经被（用户）按住。
-    // 铁律②：这种键实际上属于用户 —— 释放时绝不补 KeyUp（见 ReleaseKey / ReleaseAll）。
-    preHeldByUser_[index] = IsKeyPhysicallyDown(key);
+    // 铁律②判据：这个键在我们按下之前是不是**用户**按住的？
+    //   ⚠ 只有在我们自己没有任何“还没落地”的事件时，这个读值才能算成用户的。
+    //   理由与 MouseController::Press 里那段注释完全相同：SendInput 只是把事件排进系统输入队列，
+    //   上一条同键的 KeyUp 可能还没被处理，这里就会把我们自己的按下读成“用户本来就按着”，
+    //   之后 ReleaseKey/ReleaseAll 按铁律②一律不补 KeyUp ⇒ 这个键会一直卡在按下。
+    const bool physicalDown = PhysicalStateLocked(key);
+    if (!physicalDown) {
+        ourDownUnsettled_[index] = false;   // 亲眼看到它真的抬起了 → 可疑窗口结束
+    }
+    preHeldByUser_[index] = physicalDown && !ourDownUnsettled_[index];
 
     if (!SendKeyEventLocked(key, true)) {
         return false;
     }
-    playerDown_[index] = true;   // 只有发送成功才记 Player-owned
+    playerDown_[index] = true;         // 只有发送成功才记 Player-owned
+    ourDownUnsettled_[index] = true;   // 刚发过按下：物理状态可能还没反映
     return true;
 }
 
@@ -196,6 +235,8 @@ bool KeyboardController::ReleaseKey(Key key) {
     // 我们这边的记账，物理状态交还给用户。
     if (preHeldByUser_[index]) {
         ClearStateLocked(index);
+        // 我们没有在这上面叠事件，物理状态归用户：可疑窗口一并结束（用户抬手即归零）。
+        ourDownUnsettled_[index] = false;
         return false;
     }
 
@@ -205,6 +246,9 @@ bool KeyboardController::ReleaseKey(Key key) {
         LogWarn(std::string("释放按键失败（已重试）：") + KeyDisplayName(key));
     }
     ClearStateLocked(index);
+    // 刚刚发出 KeyUp：如果系统此刻还读成“按下”，说明它还没落地 —— 这段窗口里读到的按下
+    // 不能算成用户的，标记下来交给 PressKey 判断（否则会把我们自己的事件误判成用户按住）。
+    ourDownUnsettled_[index] = PhysicalStateLocked(key);
     return true;
 }
 
@@ -218,6 +262,7 @@ void KeyboardController::ReleaseAll() {
             // 用户本来就按着的键：一概不碰（铁律②）——急停时也不许把用户的键抬起来。
             // 只清掉我们这边的记账，别留一个假的“我们按着”在账本里。
             ClearStateLocked(i);
+            ourDownUnsettled_[i] = false;
             continue;
         }
         if (!SendKeyEventLocked(static_cast<Key>(i), false)) {
@@ -225,6 +270,8 @@ void KeyboardController::ReleaseAll() {
             LogWarn(std::string("ReleaseAll 释放按键失败（已重试）：") + KeyDisplayName(static_cast<Key>(i)));
         }
         ClearStateLocked(i);
+        // 刚刚发出 KeyUp：系统还没读成“抬起”的话，这段窗口里的按下不归用户。
+        ourDownUnsettled_[i] = PhysicalStateLocked(static_cast<Key>(i));
     }
 }
 

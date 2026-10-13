@@ -14,6 +14,10 @@ namespace {
 
 constexpr double kInfinite = std::numeric_limits<double>::infinity();
 
+// 两个音符算“紧挨着”的时间容差（秒）：前一个的结束 == 后一个的开始（《父亲》就是这种排布）。
+// 紧挨着的同 mode 音符之间保持按住鼠标键，不在边界上做“抬起 → 立刻重按”。
+constexpr double kModeKeepEpsilon = 1e-6;
+
 }  // namespace
 
 SongPlayer::SongPlayer(InputController& input, const PlayerOptions& options)
@@ -102,6 +106,8 @@ void SongPlayer::PlayLoop(const Timeline& timeline) {
     const int count = timeline.NoteCount();
     held_.clear();
     heldCount_.store(0);
+    // 新一轮从头开始：手上没有按着任何演奏方式
+    modeHeld_ = PlayMode::Normal;
 
     for (;;) {
         if (Interrupted()) {
@@ -110,7 +116,7 @@ void SongPlayer::PlayLoop(const Timeline& timeline) {
         const double position = clock_.PositionSeconds();
 
         // 1. 释放所有已经到点的音符（按绝对时间释放，与起音同一套时间基准）
-        ReleaseDueNotes(position);
+        ReleaseDueNotes(position, timeline);
 
         // 2. 起音：一次循环只处理一个音符，保证每个音符都有自己的精确目标时刻
         if (next_ < count) {
@@ -185,44 +191,79 @@ bool SongPlayer::PressNoteGuarded(const Note& note) {
         return true;
     }
 
-    const bool modeOk = input_.PressMode(note.mode);
+    // ---- 演奏方式（鼠标键）：换 mode 先抬干净上一个，同一个 mode 连续则保持按住 ----
+    //   同 mode 连续时**不重复按下**（原来就是靠 MouseController::Press 的“已按下不重复下发”
+    //   兜住的），更要紧的是别在边界上先抬后按：那对事件挨得极近，正是把系统读值搅浑、
+    //   让右键被误判成“用户按着”从而永远不抬起的序列。
+    bool modeOk = true;
+    bool modePressedNow = false;
+    if (note.mode != modeHeld_) {
+        if (modeHeld_ != PlayMode::Normal) {
+            input_.ReleaseMode(modeHeld_);   // 上一个 mode 需要的鼠标键全部抬起来
+        }
+        modeHeld_ = PlayMode::Normal;        // 此刻手上不再按着任何演奏方式
+        modeOk = input_.PressMode(note.mode);
+        modePressedNow = true;
+        if (modeOk) {
+            modeHeld_ = note.mode;
+        }
+    }
+
     const bool keyOk = input_.PressKey(note.key);
     if (modeOk && keyOk) {
         held_.push_back(HeldNote{note.key, note.mode, note.EndTime()});
         heldCount_.store(static_cast<int>(held_.size()));
         return true;
     }
-    // 失败分支：把**已经真正按下的那一部分**释放干净，保证任何分支下都不留键。
-    // 原来的缺口：modeOk 为假、keyOk 为真时，键已经按进 Player-owned 账本却没进 held_，
-    // 于是永远不会被 ReleaseDueNotes 释放 —— 演奏里会一直卡住这一个音（直到整曲停止）。
+
+    // 失败分支：只回收**这一次真正按下**的部分，任何分支下都不留键。
     if (keyOk) {
-        input_.ReleaseKey(note.key);      // 键按下成功了：放掉它
+        input_.ReleaseKey(note.key);         // 键按下成功了：放掉它
     }
-    if (modeOk) {
-        input_.ReleaseMode(note.mode);    // 鼠标键（演奏方式）按下成功了：放掉它
+    if (modePressedNow) {
+        // 这一次按下去的鼠标键：哪怕只按下了组合模式里的一半，也一并收干净
+        // （复用上一个音符的 mode 时绝不走这里 —— 那会把还在响的音变调）。
+        input_.ReleaseMode(note.mode);
+        modeHeld_ = PlayMode::Normal;
     }
     return false;
 }
 
-void SongPlayer::ReleaseNoteGuarded(Key key, PlayMode mode) {
+void SongPlayer::ReleaseNoteGuarded(Key key, PlayMode mode, bool keepMode) {
     std::lock_guard<std::mutex> sendLock(sendMutex_);
     if (options_.dryRun) {
         return;
     }
     input_.ReleaseKey(key);
+    if (keepMode) {
+        // 下一个音符要的是同一个 mode：保持按住（这就是“连按不重按”的优化）。
+        return;
+    }
     input_.ReleaseMode(mode);
+    if (modeHeld_ == mode) {
+        modeHeld_ = PlayMode::Normal;
+    }
 }
 
 void SongPlayer::ReleaseAllGuarded() {
     std::lock_guard<std::mutex> sendLock(sendMutex_);
     input_.ReleaseAll();
+    modeHeld_ = PlayMode::Normal;   // 手上什么都没有了
 }
 
-void SongPlayer::ReleaseDueNotes(double position) {
+void SongPlayer::ReleaseDueNotes(double position, const Timeline& timeline) {
     bool changed = false;
     for (size_t i = 0; i < held_.size();) {
         if (held_[i].endTime <= position) {
-            ReleaseNoteGuarded(held_[i].key, held_[i].mode);
+            // 紧挨着的下一个音符要用同一个演奏方式 → 保持按住，不做“抬起→重按”。
+            // 否则就在这个边界上把上一个 mode 的鼠标键全部抬起来（换调式不得漏抬）。
+            bool keepMode = false;
+            if (next_ < timeline.NoteCount()) {
+                const Note& upcoming = timeline.At(next_);
+                keepMode = (upcoming.mode == held_[i].mode) &&
+                           (upcoming.startTime <= held_[i].endTime + kModeKeepEpsilon);
+            }
+            ReleaseNoteGuarded(held_[i].key, held_[i].mode, keepMode);
             held_[i] = held_.back();
             held_.pop_back();
             changed = true;

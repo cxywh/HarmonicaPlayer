@@ -99,10 +99,10 @@ private:
 
     // 下面三个都在“发送锁”保护下工作，见 sendMutex_ 的注释
     bool PressNoteGuarded(const Note& note);
-    void ReleaseNoteGuarded(Key key, PlayMode mode);
+    void ReleaseNoteGuarded(Key key, PlayMode mode, bool keepMode);
     void ReleaseAllGuarded();
 
-    void ReleaseDueNotes(double position);
+    void ReleaseDueNotes(double position, const Timeline& timeline);
     double EarliestHeldEnd() const;
     bool Interrupted() const;
 
@@ -154,6 +154,13 @@ private:
     PrecisionWait waiter_;
     int next_ = 0;
     std::vector<HeldNote> held_;
+    // 播放器当前**真正按着**的演奏方式（Normal = 没碰鼠标）。
+    // 规矩（用户实测右键被一直按住之后定下来的）：
+    //   · 换 mode：先把上一个 mode 需要的鼠标键全部抬起来，再按新的；
+    //   · 同一个 mode 连续：保持按住，不在音符边界上“抬起→立刻重按”
+    //     （那对事件挨得极近，正是把系统读值搅浑、导致右键卡死的序列）。
+    // 只在 sendMutex_ 保护下读写；每轮演奏开始与任何一次 ReleaseAll 之后都复位成 Normal。
+    PlayMode modeHeld_ = PlayMode::Normal;
 };
 
 }  // namespace hp
