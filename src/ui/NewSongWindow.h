@@ -46,12 +46,14 @@ private:
 
     void CreateChildren();
     void Layout();
+    void UpdateColumnWidths();   // 表格列宽按文字实测（时值文案变长了，写死会显示不全）
     void OnCommand(int id, int notifyCode, HWND control);
     void OnDrawItem(const DRAWITEMSTRUCT* item);
     void OnPaint();
     void ApplyDpi(unsigned dpi);
 
     void AddNote(Key key);
+    void ExtendLastNote();       // 「延时」：把上一个音符延长一拍（简谱的 -）
     void RefreshList();
     int SelectedRow() const;              // 表格里选中的第几行（-1 = 没选）
     void SelectRow(int index);            // 选中第 index 行并滚到可见
@@ -75,6 +77,7 @@ private:
     HWND noteButtons_[kKeyCount] = {};
     HWND modeButtons_[kPlayModeCount] = {};
     HWND durationButtons_[kDurationChoiceCount] = {};
+    HWND extendButton_ = nullptr;        // 「延时」（简谱的 -）：把上一个音符延长一拍
     HWND list_ = nullptr;
     HWND hintLabel_ = nullptr;
     HWND statusLabel_ = nullptr;
@@ -94,7 +97,7 @@ private:
     TimeSignature frameSignature_{4, 4};             // 曲头拍号：同上
     double cursorBeats_ = 0.0;          // 下一个音符落在第几拍（休止符只推它、不进表格）
     PlayMode mode_ = PlayMode::Normal;  // 当前选的演奏方式
-    int durationChoice_ = 0;            // 当前选的时值（下标进 kDurationChoices）
+    int durationChoice_ = kDefaultDurationChoiceIndex;   // 当前选的时值（下标进 kDurationChoices）
     int editingRow_ = -1;               // >=0 表示正在"编辑选中行"：点音调按钮会替换这一行
     unsigned dpi_ = 96;
     bool statusIsError_ = false;

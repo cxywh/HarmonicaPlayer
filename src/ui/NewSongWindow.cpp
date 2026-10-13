@@ -6,9 +6,15 @@
 //               演奏方式：第一行 不按鼠标（本音）/ 按住左键（降调）/ 按住中键（半音）/ 按住右键（升调）
 //                         第二行 按住左键+中键（降调+半音）/ 按住右键+中键（升调+半音）
 //                         （后两个是组合模式：同时按住两个鼠标键）
-//               时值：一拍 / 两拍 / 半拍 / 休止一拍
+//               时值：全音符 4 拍 / 二分音符 2 拍 / 四分音符 1 拍 / 八分音符 1/2 拍 /
+//                     十六分音符 1/4 拍 / 附点四分 1.5 拍 / 附点八分 0.75 拍 /
+//                     休止两拍 / 休止一拍 / 休止半拍；再加一个「延时」（简谱的 -，把上一个音符延长一拍）
 //   [已加的音符] 表格（序号/小节/拍位置/起始时间/音调/演奏方式/时值）
 //   底部：保存到曲谱列表… / 删掉最后一个 / 全部清空 / 关闭 + 状态行
+//
+// 宽度约定：所有按钮的宽度都用 ui::ButtonWidthForText（内存 DC + GetTextExtentPoint32 实测文字宽）
+// 推出来，放不下就折行——**不许**再写死宽度：中文长文案会被截掉（用户报过两次）。
+// ui_test 用同一套函数断言"文字宽 + 内边距 ≤ 按钮宽"，改文案时会自动拦住。
 //
 // 加音符就是"点一下"：不需要理解拍号、时值、毫秒——那些都在表格里替他算好、显示出来。
 
@@ -35,10 +41,11 @@ constexpr int kIdName = 2101;
 constexpr int kIdBpm = 2102;
 constexpr int kIdNoteBase = 2110;       // 2110..2117 → Key::Z..Comma
 constexpr int kIdModeBase = 2120;       // 2120..2125 → PlayMode（6 种：单键 4 + 组合 2）
-constexpr int kIdDurationBase = 2130;   // 2130..2133 → kDurationChoices
+constexpr int kIdDurationBase = 2130;   // 2130..2139 → kDurationChoices（10 档标准时值）
 constexpr int kIdList = 2140;
 constexpr int kIdDeleteSelected = 2150;   // 删除选中行（原来是"删掉最后一个"）
 constexpr int kIdEditSelected = 2154;     // 编辑选中行
+constexpr int kIdExtendLast = 2155;       // 延时（简谱的 -）：把上一个音符延长一拍
 constexpr int kIdClear = 2151;
 constexpr int kIdSave = 2152;
 constexpr int kIdClose = 2153;
@@ -96,7 +103,9 @@ bool NewSongWindow::Create(HINSTANCE instance, std::string* error) {
     }
 
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
-    RECT rect{0, 0, S(790), S(620)};
+    // 客户区基准宽度取了 UiTheme.h 的 kNewSongWindowWidth：自检（ui_test）按同一个宽度算按钮
+    // 能不能放得下，两边必须用同一个数，否则断言测的不是窗口真正用的宽度。
+    RECT rect{0, 0, S(kNewSongWindowWidth), S(620)};
     AdjustWindowRectForDpi(rect, style, false);
     hwnd_ = CreateWindowExW(WS_EX_TOOLWINDOW, kWindowClass, L"新建曲谱", style, CW_USEDEFAULT,
                             CW_USEDEFAULT, rect.right - rect.left, rect.bottom - rect.top, nullptr,
@@ -115,7 +124,7 @@ void NewSongWindow::Reset() {
     rows_.clear();
     cursorBeats_ = 0.0;
     mode_ = PlayMode::Normal;
-    durationChoice_ = 0;
+    durationChoice_ = kDefaultDurationChoiceIndex;
     editingRow_ = -1;
     if (nameEdit_ != nullptr) {
         SetWindowTextW(nameEdit_, Utf8ToWide(labels::kNewSongName).c_str());
@@ -143,7 +152,7 @@ void NewSongWindow::LoadSongForEdit(const Song& song, const std::string& sourceP
     frameBeatUnit_ = song.beatUnit;      // 曲头跟着被编辑的曲谱走
     frameSignature_ = song.timeSignature;
     editingRow_ = -1;
-    durationChoice_ = 0;
+    durationChoice_ = kDefaultDurationChoiceIndex;
     mode_ = PlayMode::Normal;
     cursorBeats_ = 0.0;
     for (const EditorRow& row : rows_) {
@@ -279,9 +288,12 @@ void NewSongWindow::CreateChildren() {
         durationButtons_[i] =
             makeButton(Utf8ToWide(kDurationChoices[i].label).c_str(), kIdDurationBase + i);
     }
+    // 延时（简谱的 -）：不是"时值档位"，是一个动作按钮——点它把上一个音符延长一拍
+    const std::wstring extendText = Utf8ToWide(labels::kExtendAction);
+    extendButton_ = makeButton(extendText.c_str(), kIdExtendLast);
 
     hintLabel_ = makeLabel(
-        L"点音调按钮就加一个音符；在下面的表格里点一行选中它，再点「编辑选中行」换音或「删除选中行」删掉它。",
+        L"点音调按钮加音符；「延时」把上一个音符延长一拍；表格里点一行选中，再点「编辑选中行」换音或「删除选中行」删掉。",
         kIdHint);
 
     list_ = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
@@ -297,7 +309,7 @@ void NewSongWindow::CreateChildren() {
     };
     const Column columns[] = {
         {L"序号", 46}, {L"小节", 46},   {L"拍位置", 66}, {L"起始时间", 78},
-        {L"音调", 62}, {L"演奏方式", 78}, {L"时值", 168},
+        {L"音调", 62}, {L"演奏方式", 78}, {L"时值", 200},
     };
     for (int i = 0; i < static_cast<int>(sizeof(columns) / sizeof(columns[0])); ++i) {
         LVCOLUMNW column{};
@@ -307,6 +319,7 @@ void NewSongWindow::CreateChildren() {
         column.iSubItem = i;
         ListView_InsertColumn(list_, i, &column);
     }
+    UpdateColumnWidths();   // 时值列按文字实测再定一次宽（"十六分音符 1/4 拍（0.125 秒）"更长）
 
     saveButton_ = makeButton(L"保存到曲谱列表", kIdSave);
     editSelectedButton_ = makeButton(L"编辑选中行", kIdEditSelected);
@@ -323,7 +336,8 @@ void NewSongWindow::ApplyDpi(unsigned dpi) {
     RebuildUiFonts();
     RebuildThemeBrushes();
     for (HWND control : {nameEdit_, bpmEdit_, list_, hintLabel_, statusLabel_, saveButton_,
-                         editSelectedButton_, deleteSelectedButton_, clearButton_, closeButton_}) {
+                         editSelectedButton_, deleteSelectedButton_, clearButton_, closeButton_,
+                         extendButton_}) {
         if (control != nullptr) {
             SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(UiFonts().body), TRUE);
         }
@@ -338,6 +352,25 @@ void NewSongWindow::ApplyDpi(unsigned dpi) {
         SendMessageW(button, WM_SETFONT, reinterpret_cast<WPARAM>(UiFonts().body), TRUE);
     }
     Layout();
+}
+
+// 表格列宽：时值列的文字变长了（标准乐理名字 + 秒数），写死的宽度会显示不全。
+// 取所有时值档位的**实测**文字宽再定宽，字体/DPI 变了也跟得上。
+void NewSongWindow::UpdateColumnWidths() {
+    if (list_ == nullptr) {
+        return;
+    }
+    const double bpm = 120.0;   // 只用来估"（0.125 秒）"那一段的宽度，取最长的写法即可
+    int widest = S(120);
+    for (int i = 0; i < kDurationChoiceCount; ++i) {
+        const std::wstring cell = Utf8ToWide(DurationUserCell(kDurationChoices[i].beats, bpm));
+        widest = std::max(widest, MeasureTextWidth(UiFonts().body, cell) + S(24));
+    }
+    // 前面 6 列的固定宽度合计（序号/小节/拍位置/起始时间/音调/演奏方式）
+    const int leadingColumns = S(46 + 46 + 66 + 78 + 62 + 78);
+    const int listWidth = std::max(S(200), S(kNewSongWindowWidth) - (S(14) + S(10)) * 2);
+    const int cap = std::max(S(160), listWidth - leadingColumns - S(20));
+    ListView_SetColumnWidth(list_, 6, std::min(widest, cap));
 }
 
 void NewSongWindow::Layout() {
@@ -378,20 +411,51 @@ void NewSongWindow::Layout() {
     move(bpmHint_, rowLeft + S(56) + S(78), rowY + S(3), S(260), S(20));
     y += groupHeight(2) + groupGap;
 
-    // 加音符（四行按钮 + 一行提示）
-    // 加音符分组：表头 + 四行按钮（音调 1 行 + 演奏方式 2 行 + 时值 1 行，按 buttonRowPitch 摊开）
-    //             + 一行提示 + 底边
-    constexpr int kModesPerRow = 4;   // 演奏方式每行最多放 4 个（4 个单键一行，2 个组合模式另起一行）
-    constexpr int kModeRows = (kPlayModeCount + kModesPerRow - 1) / kModesPerRow;
+    // 加音符（音调 1 行 + 演奏方式若干行 + 时值若干行 + 延时 1 行 + 一行提示）
+    //
+    // 行数不再写死：按钮宽度全部由 ui::ButtonWidthForText（文字实测）推出来，
+    // 再按可用宽度贪心折行。文案一改（例如时值从 4 档扩到 10 档 + 延时），
+    // 行数自动跟着变——不会再把"按"字那种长文案截掉。
+    const int available = width - (rowLeft + labelWidth) - margin - inner;
+
+    std::vector<std::wstring> modeLabels;
+    modeLabels.reserve(kPlayModeCount);
+    for (int i = 0; i < kPlayModeCount; ++i) {
+        modeLabels.push_back(Utf8ToWide(PlayModeButtonName(static_cast<PlayMode>(i))));
+    }
+    // 自由折行会把这一对组合模式拆散（一个跟在单键后面挤第一行、一个独占第二行）：
+    // 指定从 PlayMode::LeftMiddle（下标 4）起另起一行 → 4 个单键一行、2 个组合模式一行。
+    // 窗口与 ui_test 用同一份下标，断言测的就是窗口真正用的排版。
+    const std::vector<int> modeBreaks = {static_cast<int>(PlayMode::LeftMiddle)};
+    const ButtonRowPlan modePlan = PlanButtonRows(modeLabels, available, modeBreaks);
+
+    std::vector<std::wstring> durationLabels;
+    durationLabels.reserve(kDurationChoiceCount + 1);
+    for (int i = 0; i < kDurationChoiceCount; ++i) {
+        durationLabels.push_back(Utf8ToWide(kDurationChoices[i].label));
+    }
+    // 「延时」（简谱的 -）跟在时值按钮后面排（它是"把上一个音符延长一拍"，属于时值一类的动作）；
+    // 这样能填满时值最后一行的空位，不用为它单独占一行（窗口别长太高）。
+    durationLabels.push_back(Utf8ToWide(labels::kExtendAction));
+    const ButtonRowPlan durationPlan = PlanButtonRows(durationLabels, available);
+
+    const int modeRows = std::max(1, modePlan.rowCount);
+    const int durationRows = std::max(1, durationPlan.rowCount);
     const int pickGroupHeight =
-        groupHead + buttonRowPitch * (1 + kModeRows + 1) + rowsUnit + groupFoot;
+        groupHead + buttonRowPitch * (1 + modeRows + durationRows) + rowsUnit + groupFoot;
     pickGroup_ = RECT{margin, y, width - margin, y + pickGroupHeight};
     rowY = y + groupHead;
     {
         move(noteLabel_, rowLeft, rowY + S(5), S(64), S(20));
-        // 8 个音调按钮排一行（宽度按可用宽度摊，别溢出）
-        const int available = width - (rowLeft + labelWidth) - margin - inner;
-        const int buttonWidth = std::max(S(52), (available - buttonGap * (kKeyCount - 1)) / kKeyCount);
+        // 8 个音调按钮排一行：等分（整齐好看），但不得窄于文字实测宽度（"1（Z）"也要放得下）
+        int widest = S(52);
+        for (const HWND button : noteButtons_) {
+            wchar_t text[64] = {};
+            GetWindowTextW(button, text, 64);
+            widest = std::max(widest, ButtonWidthForText(text));
+        }
+        const int buttonWidth =
+            std::max(widest, (available - buttonGap * (kKeyCount - 1)) / kKeyCount);
         int x = rowLeft + labelWidth;
         for (int i = 0; i < kKeyCount; ++i) {
             move(noteButtons_[i], x, rowY, buttonWidth, buttonHeight);
@@ -400,28 +464,38 @@ void NewSongWindow::Layout() {
     }
     rowY += buttonRowPitch;
     {
-        // 演奏方式按钮：每行 kModesPerRow 个（前 4 个单键一行；2 个组合模式另起一行，字才放得下）
-        const int available = width - (rowLeft + labelWidth) - margin - inner;
+        // 演奏方式按钮：宽度 = 文字实测宽度 + 内边距，按可用宽度折行
         move(modeLabel_, rowLeft, rowY + S(5), S(64), S(20));
-        const int buttonWidth =
-            std::max(S(96), (available - buttonGap * (kModesPerRow - 1)) / kModesPerRow);
+        std::vector<int> rowX(static_cast<size_t>(modePlan.rowCount), 0);
         for (int i = 0; i < kPlayModeCount; ++i) {
-            const int row = i / kModesPerRow;
-            const int column = i % kModesPerRow;
-            move(modeButtons_[i], rowLeft + labelWidth + column * (buttonWidth + buttonGap),
-                 rowY + row * buttonRowPitch, buttonWidth, buttonHeight);
+            const int row = modePlan.rows[static_cast<size_t>(i)];
+            const int cx = modePlan.widths[static_cast<size_t>(i)];
+            move(modeButtons_[i], rowLeft + labelWidth + rowX[static_cast<size_t>(row)],
+                 rowY + row * buttonRowPitch, cx, buttonHeight);
+            rowX[static_cast<size_t>(row)] += cx + buttonGap;
         }
     }
-    rowY += buttonRowPitch * kModeRows;
+    rowY += buttonRowPitch * modeRows;
     {
+        // 时值按钮 + 「延时」：同样是实测宽度 + 折行（标准时值名字更长：全音符 / 十六分音符 / 附点八分…）
         move(durationLabel_, rowLeft, rowY + S(5), S(64), S(20));
-        int x = rowLeft + labelWidth;
+        std::vector<int> rowX(static_cast<size_t>(durationPlan.rowCount), 0);
         for (int i = 0; i < kDurationChoiceCount; ++i) {
-            move(durationButtons_[i], x, rowY, S(96), buttonHeight);
-            x += S(96) + buttonGap;
+            const int row = durationPlan.rows[static_cast<size_t>(i)];
+            const int cx = durationPlan.widths[static_cast<size_t>(i)];
+            move(durationButtons_[i], rowLeft + labelWidth + rowX[static_cast<size_t>(row)],
+                 rowY + row * buttonRowPitch, cx, buttonHeight);
+            rowX[static_cast<size_t>(row)] += cx + buttonGap;
         }
+        // 延时排在时值按钮之后（同一套排版，最后一个）
+        const size_t extendIndex = static_cast<size_t>(kDurationChoiceCount);
+        const int row = durationPlan.rows[extendIndex];
+        const int cx = durationPlan.widths[extendIndex];
+        move(extendButton_, rowLeft + labelWidth + rowX[static_cast<size_t>(row)],
+             rowY + row * buttonRowPitch, cx, buttonHeight);
+        rowX[static_cast<size_t>(row)] += cx + buttonGap;
     }
-    rowY += buttonRowPitch;
+    rowY += buttonRowPitch * durationRows;
     move(hintLabel_, rowLeft, rowY + S(2), std::max(S(120), width - rowLeft - margin - inner), S(20));
     y += pickGroupHeight + groupGap;
 
@@ -475,12 +549,17 @@ void NewSongWindow::OnCommand(int id, int notifyCode, HWND control) {
         durationChoice_ = id - kIdDurationBase;
         InvalidatePickers();
         if (kDurationChoices[durationChoice_].rest) {
-            // 点「休止一拍」= 立刻往列表里加一条休止（用户要求"选中就能看到"）
+            // 点休止档（休止两拍 / 休止一拍 / 休止半拍）= 立刻往列表里加一条休止
+            // （用户要求"选中就能看到"；休止只占时间、不出声）
             AddNote(Key::Z);
         } else {
             SetStatus(std::string("时值改成：") + kDurationChoices[durationChoice_].label + "。",
                       false);
         }
+        return;
+    }
+    if (id == kIdExtendLast) {
+        ExtendLastNote();
         return;
     }
     if ((id == kIdName || id == kIdBpm) && notifyCode == EN_CHANGE) {
@@ -638,8 +717,9 @@ void NewSongWindow::AddNote(Key key) {
         cursorBeats_ += choice.beats;
         RefreshList();
         SelectRow(static_cast<int>(rows_.size()) - 1);
-        SetStatus("加了一拍休止（不出声、只占时间），列表里能看到它；下一个音符从第 " +
-                      FormatBeats(cursorBeats_) + " 拍开始。想把它换成音符：选中它、点「编辑选中行」，再点音调按钮。",
+        SetStatus(std::string("加了一个休止（") + choice.label + "，不出声、只占时间），列表里能看到它；" +
+                      "下一个音符从第 " + FormatBeats(cursorBeats_) +
+                      " 拍开始。想把它换成音符：选中它、点「编辑选中行」，再点音调按钮。",
                   false);
         return;
     }
@@ -658,6 +738,25 @@ void NewSongWindow::AddNote(Key key) {
     SetStatus(std::string("加了 ") + KeyNoteName(key) + "（" + KeyName(key) + "）· " +
                   ShortModeName(mode_) + " · " + choice.label + "，现在共 " +
                   std::to_string(rows_.size()) + " 个音符 / " + FormatBeats(cursorBeats_) + " 拍。",
+              false);
+}
+
+void NewSongWindow::ExtendLastNote() {
+    // 「延时」= 简谱里的 "-"：把上一个音符再唱一拍。模型里仍是**一个**音符（duration + 1 拍），
+    // 不新增行、不拆成两个音符——所以表格里的行数不变，行上的时值变长。
+    if (rows_.empty()) {
+        SetStatus("表格里还没有音符：延时（简谱的 -）是把上一个音符延长一拍，先点音调按钮加一个音符。",
+                  true);
+        return;
+    }
+    const int index = ExtendLastRow(rows_, &cursorBeats_);
+    const EditorRow& row = rows_[static_cast<size_t>(index)];
+    RefreshList();
+    SelectRow(index);
+    SetStatus("已把第 " + std::to_string(index + 1) + " 个" +
+                  (row.rest ? std::string("休止") : std::string("音符")) + "延长了一拍（现在是 " +
+                  DurationUserCell(row.durationBeats, Context().bpm) +
+                  "，下一个音符从第 " + FormatBeats(cursorBeats_) + " 拍接上）。",
               false);
 }
 
@@ -818,6 +917,8 @@ void NewSongWindow::OnDrawItem(const DRAWITEMSTRUCT* item) {
         info.text = L"编辑选中行";
     } else if (id == kIdDeleteSelected) {
         info.text = L"删除选中行";
+    } else if (id == kIdExtendLast) {
+        info.text = Utf8ToWide(labels::kExtendAction);
     } else if (id == kIdClear) {
         info.text = L"全部清空";
     } else if (id == kIdClose) {

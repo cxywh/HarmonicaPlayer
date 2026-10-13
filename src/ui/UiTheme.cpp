@@ -130,6 +130,98 @@ void DestroyThemeBrushes() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 按钮文字测量（见 UiTheme.h 的说明）
+// ---------------------------------------------------------------------------
+namespace {
+
+constexpr int kButtonTextPaddingPerSide = 12;   // 96 DPI 下文字左右各留的像素
+constexpr int kMinButtonWidth = 56;             // 极短文字也留个能点的宽度
+constexpr int kButtonGap = 8;                   // 按钮之间的横向间隙（与窗口排版一致）
+
+}  // namespace
+
+int ButtonTextPadding() {
+    return S(kButtonTextPaddingPerSide) * 2;
+}
+
+int MeasureTextWidth(HFONT font, const std::wstring& text) {
+    if (text.empty()) {
+        return 0;
+    }
+    HDC dc = CreateCompatibleDC(nullptr);   // 内存 DC：不需要窗口就能量
+    if (dc == nullptr) {
+        return 0;
+    }
+    HGDIOBJ oldFont = nullptr;
+    if (font != nullptr) {
+        oldFont = SelectObject(dc, font);
+    }
+    SIZE size{};
+    int width = 0;
+    if (GetTextExtentPoint32W(dc, text.c_str(), static_cast<int>(text.size()), &size) != 0) {
+        width = size.cx;
+    }
+    if (oldFont != nullptr) {
+        SelectObject(dc, oldFont);
+    }
+    DeleteDC(dc);
+    return width;
+}
+
+int ButtonWidthForText(const std::wstring& text) {
+    if (UiFonts().body == nullptr) {
+        // 还没建字体（例如自检程序刚启动）：先按当前 DPI 建一份，别拿 0 当宽度量
+        RebuildUiFonts();
+    }
+    const int measured = MeasureTextWidth(UiFonts().body, text);
+    return std::max(S(kMinButtonWidth), measured + ButtonTextPadding());
+}
+
+int NewSongButtonsAvailableWidth(int clientWidth) {
+    // 必须与 NewSongWindow::Layout 的边距一致：左边距 margin + 分组内边距 inner、
+    // 左边一列标签 labelWidth、右边距 margin + inner
+    const int margin = S(14);
+    const int inner = S(14);
+    const int rowLeft = margin + inner;
+    const int labelWidth = S(72);
+    const int available = clientWidth - (rowLeft + labelWidth) - margin - inner;
+    return std::max(available, S(120));
+}
+
+ButtonRowPlan PlanButtonRows(const std::vector<std::wstring>& labels, int availableWidth,
+                             const std::vector<int>& forceNewRowAt) {
+    ButtonRowPlan plan;
+    plan.widths.reserve(labels.size());
+    plan.rows.reserve(labels.size());
+    const int gap = S(kButtonGap);
+    int row = 0;
+    int used = 0;   // 当前行已占宽度（第一个按钮之后每个都含前面的间隙）
+    for (size_t i = 0; i < labels.size(); ++i) {
+        const int width = ButtonWidthForText(labels[i]);
+        plan.widths.push_back(width);
+        if (width > availableWidth) {
+            plan.overflow = true;   // 一个按钮就撑破整行：必须让调用方/自检看到
+        }
+        bool forceBreak = false;
+        for (const int index : forceNewRowAt) {
+            if (index == static_cast<int>(i)) {
+                forceBreak = true;
+                break;
+            }
+        }
+        if (used > 0 && (forceBreak || used + gap + width > availableWidth)) {
+            ++row;            // 这一行放不下了（或指定要换行），换行
+            used = width;
+        } else {
+            used += (used > 0 ? gap + width : width);
+        }
+        plan.rows.push_back(row);
+    }
+    plan.rowCount = labels.empty() ? 0 : (row + 1);
+    return plan;
+}
+
 std::wstring Utf8ToWide(const std::string& text) {
     if (text.empty()) {
         return std::wstring();

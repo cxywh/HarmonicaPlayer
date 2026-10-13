@@ -195,11 +195,14 @@ if errorlevel 1 (
 )
 
 echo [8/11] Compiling ui_test.exe (%CONFIG%) ...
+rem ui_test also compiles UiTheme.cpp: it measures button text width with a memory DC
+rem using the real button font and asserts (text width + padding) <= button width.
+rem GetTextExtentPoint32 lives in gdi32, hence gdi32.lib here.
 cl /nologo /std:c++17 /utf-8 /EHsc /W4 /MP ^
    %OPTFLAGS% /DUNICODE /D_UNICODE /Isrc /Ithird_party ^
-   %SHARED% src\tools\ui_test.cpp ^
+   %SHARED% src\ui\UiTheme.cpp src\tools\ui_test.cpp ^
    /Fo:"%ROOT%dist\obj\\" /Fe:"%ROOT%dist\ui_test.exe" ^
-   /link /SUBSYSTEM:CONSOLE user32.lib advapi32.lib shell32.lib
+   /link /SUBSYSTEM:CONSOLE user32.lib advapi32.lib shell32.lib gdi32.lib
 
 if errorlevel 1 (
     echo.

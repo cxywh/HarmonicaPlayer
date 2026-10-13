@@ -221,6 +221,23 @@ std::string DurationUserCell(double beats, double bpm) {
     return name + "（" + FormatBeats(beats * 60.0 / bpm) + " 秒）";
 }
 
+int ExtendLastRow(std::vector<EditorRow>& rows, double* cursorBeats) {
+    if (rows.empty()) {
+        return -1;
+    }
+    const int index = static_cast<int>(rows.size()) - 1;
+    EditorRow& last = rows[static_cast<size_t>(index)];
+    // 简谱的 "-"：音符本身不变，只把时值再延长一拍（**不**新增一行，模型里始终是一个音符）
+    last.durationBeats += 1.0;
+    if (cursorBeats != nullptr) {
+        const double end = last.beat + last.durationBeats;
+        if (end > *cursorBeats) {
+            *cursorBeats = end;
+        }
+    }
+    return index;
+}
+
 std::string KeyNoteName(Key key) {
     // 顺序必须与 enum class Key 一致：Z X C V B N M ,  →  1 2 3 4 5 6 7 i
     static const char* kNames[kKeyCount] = {"1", "2", "3", "4", "5", "6", "7", "i"};
@@ -242,10 +259,19 @@ std::string PlayModeButtonName(PlayMode mode) {
 }
 
 const DurationChoice kDurationChoices[kDurationChoiceCount] = {
-    {"一拍", 1.0, false},
-    {"两拍", 2.0, false},
-    {"半拍", 0.5, false},
+    // 标准时值（按从长到短）：全音符 4 拍、二分音符 2 拍、四分音符 1 拍、八分音符 1/2 拍、十六分音符 1/4 拍
+    {"全音符 4 拍", 4.0, false},
+    {"二分音符 2 拍", 2.0, false},
+    {"四分音符 1 拍", 1.0, false},
+    {"八分音符 1/2 拍", 0.5, false},
+    {"十六分音符 1/4 拍", 0.25, false},
+    // 附点：时值 × 1.5
+    {"附点四分 1.5 拍", 1.5, false},
+    {"附点八分 0.75 拍", 0.75, false},
+    // 休止：只占时间、不出声（进表格看得见，演奏时跳过）
+    {"休止两拍", 2.0, true},
     {"休止一拍", 1.0, true},
+    {"休止半拍", 0.5, true},
 };
 
 EditorRowText DescribeRow(const EditorRow& row, const Song& song) {
@@ -367,6 +393,7 @@ const char* kExactMode = "精确";
 const char* kNaturalMode = "自然";
 const char* kCustomSpeed = "自定义（在设置里填）";
 const char* kGroupPlaybackOpt = "播放选项";
+const char* kExtendAction = "延时（把上一个音符延长一拍）";   // 简谱的 "-"
 }  // namespace labels
 
 bool ParseBpmText(const std::string& text, double& out, std::string& error) {

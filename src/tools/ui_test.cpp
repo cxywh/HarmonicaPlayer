@@ -29,6 +29,7 @@
 #include "ui/UiFormat.h"
 #include "song/BeatMath.h"
 #include "ui/UiModel.h"
+#include "ui/UiTheme.h"
 
 #include <shellapi.h>
 
@@ -461,6 +462,7 @@ void RunLabelTest() {
         {"分组：前台窗口变化", hp::ui::labels::kGroupForeground},
         {"分组：全局热键", hp::ui::labels::kGroupHotkeys},
         {"分组：播放选项", hp::ui::labels::kGroupPlaybackOpt},
+        {"延时按钮", hp::ui::labels::kExtendAction},
     };
 
     int emojiFree = 0;
@@ -683,21 +685,57 @@ void RunBeatMathTest() {
                   modeNames[5].find("中") != std::string::npos,
               "组合模式名字点明 左键+中键 / 右键+中键：" + modeNames[4] + " / " + modeNames[5]);
 
-        // 时值按钮：一拍 / 两拍 / 半拍 / 休止一拍——拍数必须对得起名字，休止只有一个
-        Check(hp::ui::kDurationChoiceCount == 4, "时值 4 档");
-        Check(hp::ui::kDurationChoices[0].beats == 1.0 && !hp::ui::kDurationChoices[0].rest,
-              "第一档 = 一拍");
-        Check(hp::ui::kDurationChoices[1].beats == 2.0, "第二档 = 两拍");
-        Check(hp::ui::kDurationChoices[2].beats == 0.5, "第三档 = 半拍");
-        Check(hp::ui::kDurationChoices[3].rest && hp::ui::kDurationChoices[3].beats == 1.0,
-              "第四档 = 休止一拍（只占时间）");
+        // 时值按钮：标准乐理（全 / 二分 / 四分 / 八分 / 十六分 + 附点 + 休止）共 10 档。
+        // 名字里的拍数必须和 beats 对得上——否则用户"照名字选"就会加错时值。
+        Check(hp::ui::kDurationChoiceCount == 10, "时值 10 档（标准乐理拓展后）");
+        Check(hp::ui::kDurationChoices[0].beats == 4.0 && !hp::ui::kDurationChoices[0].rest &&
+                  std::string(hp::ui::kDurationChoices[0].label) == "全音符 4 拍",
+              "第 1 档 = 全音符 4 拍");
+        Check(hp::ui::kDurationChoices[1].beats == 2.0 &&
+                  std::string(hp::ui::kDurationChoices[1].label) == "二分音符 2 拍",
+              "第 2 档 = 二分音符 2 拍");
+        Check(hp::ui::kDurationChoices[2].beats == 1.0 && !hp::ui::kDurationChoices[2].rest &&
+                  std::string(hp::ui::kDurationChoices[2].label) == "四分音符 1 拍",
+              "第 3 档 = 四分音符 1 拍");
+        Check(hp::ui::kDurationChoices[3].beats == 0.5 &&
+                  std::string(hp::ui::kDurationChoices[3].label) == "八分音符 1/2 拍",
+              "第 4 档 = 八分音符 1/2 拍");
+        Check(hp::ui::kDurationChoices[4].beats == 0.25 &&
+                  std::string(hp::ui::kDurationChoices[4].label) == "十六分音符 1/4 拍",
+              "第 5 档 = 十六分音符 1/4 拍");
+        // 附点 = 原时值 × 1.5（附点四分 = 1.5 拍、附点八分 = 0.75 拍）
+        Check(hp::ui::kDurationChoices[5].beats == 1.5 && !hp::ui::kDurationChoices[5].rest &&
+                  std::string(hp::ui::kDurationChoices[5].label).find("附点四分") != std::string::npos,
+              "第 6 档 = 附点四分 1.5 拍（四分 1 拍 × 1.5）");
+        Check(hp::ui::kDurationChoices[6].beats == 0.75 && !hp::ui::kDurationChoices[6].rest &&
+                  std::string(hp::ui::kDurationChoices[6].label).find("附点八分") != std::string::npos,
+              "第 7 档 = 附点八分 0.75 拍（八分 0.5 拍 × 1.5）");
+        // 休止同理：至少要有 两拍 / 一拍 / 半拍 三档，且只占时间不出声
+        Check(hp::ui::kDurationChoices[7].rest && hp::ui::kDurationChoices[7].beats == 2.0 &&
+                  std::string(hp::ui::kDurationChoices[7].label) == "休止两拍",
+              "第 8 档 = 休止两拍");
+        Check(hp::ui::kDurationChoices[8].rest && hp::ui::kDurationChoices[8].beats == 1.0,
+              "第 9 档 = 休止一拍");
+        Check(hp::ui::kDurationChoices[9].rest && hp::ui::kDurationChoices[9].beats == 0.5,
+              "第 10 档 = 休止半拍");
         int restCount = 0;
         for (int i = 0; i < hp::ui::kDurationChoiceCount; ++i) {
             if (hp::ui::kDurationChoices[i].rest) {
                 ++restCount;
             }
         }
-        Check(restCount == 1, "休止档只有一个");
+        Check(restCount == 3, "休止档三个（两拍 / 一拍 / 半拍）");
+        // 标准叫法：用户明确说要用"四分、八分、十六分"这些词
+        Check(std::string(hp::ui::kDurationChoices[2].label).find("四分") != std::string::npos &&
+                  std::string(hp::ui::kDurationChoices[3].label).find("八分") != std::string::npos &&
+                  std::string(hp::ui::kDurationChoices[4].label).find("十六分") != std::string::npos &&
+                  std::string(hp::ui::kDurationChoices[0].label).find("全音符") != std::string::npos,
+              "时值用标准乐理叫法（全音符 / 四分 / 八分 / 十六分）");
+        // 默认档 = 四分音符：新建曲谱点一下音调按钮加的是 1 拍，
+        // （数组按从长到短排，拿下标 0 当默认会变成"全音符 4 拍"，那就错了）
+        Check(hp::ui::kDurationChoices[hp::ui::kDefaultDurationChoiceIndex].beats == 1.0 &&
+                  !hp::ui::kDurationChoices[hp::ui::kDefaultDurationChoiceIndex].rest,
+              "默认时值档 = 四分音符 1 拍");
         Check(hp::ui::WrapLabelText("短句", 40.0, 2) == "短句", "短句不折行");
         const std::string longCn = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十";
         const std::string wrapped3 = hp::ui::WrapLabelText(longCn, 10.0, 3);
@@ -811,20 +849,208 @@ void RunBeatMathTest() {
                   ascii.find("abcdefghijklmnopqrs") == std::string::npos,
               "半角单行截断到不超宽并以省略号收尾：" + ascii);
 
-        Check(hp::ui::DurationChoiceIndexFor(2.0) == 1, "2 拍命中第 2 档（两拍）");
-        Check(hp::ui::DurationChoiceIndexFor(0.25) == -1, "0.25 拍不属于任何一档");
-        Check(hp::ui::DurationChoiceIndexFor(1.0) == hp::ui::DurationChoiceIndexFor(2.0) - 1,
-              "一拍在两拍前一档");
-        Check(hp::ui::DurationUserCell(2.0, 120.0) == "两拍（1 秒）",
-              "用户视角时值：两拍 = 1 秒（120 BPM）");
-        Check(hp::ui::DurationUserCell(1.0, 60.0) == "一拍（1 秒）", "60 BPM 下一拍 = 1 秒");
-        Check(hp::ui::DurationUserCell(0.5, 120.0) == "半拍（0.25 秒）", "半拍 = 0.25 秒");
-        Check(hp::ui::DurationUserCell(1.5, 120.0) == "1.5 拍（0.75 秒）",
+        Check(hp::ui::DurationChoiceIndexFor(4.0) == 0, "4 拍命中全音符");
+        Check(hp::ui::DurationChoiceIndexFor(2.0) == 1, "2 拍命中二分音符");
+        Check(hp::ui::DurationChoiceIndexFor(1.0) == 2, "1 拍命中四分音符");
+        Check(hp::ui::DurationChoiceIndexFor(0.5) == 3, "0.5 拍命中八分音符");
+        Check(hp::ui::DurationChoiceIndexFor(0.25) == 4, "0.25 拍命中十六分音符");
+        Check(hp::ui::DurationChoiceIndexFor(1.5) == 5, "1.5 拍命中附点四分");
+        Check(hp::ui::DurationChoiceIndexFor(0.75) == 6, "0.75 拍命中附点八分");
+        Check(hp::ui::DurationChoiceIndexFor(1.2) == -1, "1.2 拍不属于任何一档");
+        // 休止档不能顶替音符档：同样拍数必须命中音符那一档（否则改时值会把音符变成休止）
+        Check(!hp::ui::kDurationChoices[hp::ui::DurationChoiceIndexFor(1.0)].rest &&
+                  !hp::ui::kDurationChoices[hp::ui::DurationChoiceIndexFor(2.0)].rest &&
+                  !hp::ui::kDurationChoices[hp::ui::DurationChoiceIndexFor(0.5)].rest,
+              "1 / 2 / 0.5 拍优先命中音符档（休止档不顶替）");
+        Check(hp::ui::DurationUserCell(2.0, 120.0) == "二分音符 2 拍（1 秒）",
+              "用户视角时值：二分音符 2 拍 = 1 秒（120 BPM）");
+        Check(hp::ui::DurationUserCell(1.0, 60.0) == "四分音符 1 拍（1 秒）", "60 BPM 下一拍 = 1 秒");
+        Check(hp::ui::DurationUserCell(0.5, 120.0) == "八分音符 1/2 拍（0.25 秒）",
+              "八分音符 = 0.25 秒");
+        Check(hp::ui::DurationUserCell(1.5, 120.0) == "附点四分 1.5 拍（0.75 秒）",
+              "附点四分：标准叫法 + 秒数");
+        Check(hp::ui::DurationUserCell(1.2, 120.0) == "1.2 拍（0.6 秒）",
               "不在档位里的时值也用用户看得懂的说法");
+
+        // ---- 「延时」（简谱的 -）：把上一个音符延长一拍 ----
+        {
+            std::vector<hp::ui::EditorRow> extendRows;
+            hp::ui::EditorRow firstRow;
+            firstRow.key = hp::Key::Z;
+            firstRow.beat = 0.0;
+            firstRow.durationBeats = 1.0;
+            extendRows.push_back(firstRow);
+            double cursor = 1.0;
+            const int extended = hp::ui::ExtendLastRow(extendRows, &cursor);
+            Check(extended == 0 && extendRows.size() == 1,
+                  "延时作用在最后一个音符上，且**不新增行**（模型里仍是一个音符）");
+            Check(std::fabs(extendRows[0].durationBeats - 2.0) < 1e-9,
+                  "延时把时值 1 拍 → 2 拍");
+            Check(std::fabs(cursor - 2.0) < 1e-9, "延时的续写位置跟到第 2 拍（下一个音符接在它后面）");
+            const hp::Song extendedSong = hp::ui::BuildSongFromRows(
+                "延时测试", 120.0, hp::NoteValue::Quarter, hp::TimeSignature{4, 4}, extendRows);
+            Check(extendedSong.notes.size() == 1 &&
+                      std::fabs(extendedSong.notes[0].duration - 1.0) < 1e-9,
+                  "延时后存进曲谱的仍是一个音符、时长 1.000 秒（2 拍 @120 BPM）");
+            hp::ui::ExtendLastRow(extendRows, &cursor);
+            Check(std::fabs(extendRows[0].durationBeats - 3.0) < 1e-9 &&
+                      std::fabs(cursor - 3.0) < 1e-9,
+                  "连按两次延时 = 延长两拍（3 拍 = 简谱的两个 -）");
+            std::vector<hp::ui::EditorRow> emptyRows;
+            Check(hp::ui::ExtendLastRow(emptyRows, nullptr) == -1,
+                  "空表按延时返回 -1（界面据此提示先加音符，不静默什么都不做）");
+            // 旧曲谱兼容：延时只是改浮点拍数，JSON 里没有新字段
+            const std::string json = hp::SongToJsonText(extendedSong, 4);
+            hp::Song reloaded;
+            const hp::SongIoResult js = hp::ParseSongFromJsonText(json, reloaded);
+            Check(js.ok && reloaded.notes.size() == 1 &&
+                      std::fabs(reloaded.notes[0].duration - 1.0) < 1e-9,
+                  "延时出来的曲谱按原来的 JSON 格式存/读都正常（没有新增字段）");
+        }
         Check(hp::ui::ModeText(false, 3.0) == "模式：精确", "精确模式：" + hp::ui::ModeText(false, 3.0));
         Check(hp::ui::ModeText(true, 3.0) == "模式：自然（抖动 3 ms 以内）",
               "自然模式：" + hp::ui::ModeText(true, 3.0));
     }
+}
+
+// ---------------------------------------------------------------------------
+// 9. 按钮文字实测宽度（防截断）
+//
+// 为什么要有这一组：新建/编辑曲谱窗口"演奏方式"第二排的长按钮
+// （按住左键+中键（降调+半音））原来按等分算宽度，中文比算出来的宽，左端被切掉一个"按"字。
+// 修法是把宽度改成"用内存 DC + GetTextExtentPoint32W 按按钮实际字体量文字宽 + 内边距"，
+// 这里就用**同一套函数**（窗口排版用的就是它们）把每个按钮量一遍并断言放得下——
+// 以后再改文案（例如时值从 4 档扩到 10 档）会自动被拦住。
+// ---------------------------------------------------------------------------
+void CheckButtonFit(const std::string& group, const std::vector<std::string>& utf8Labels,
+                    HFONT font, int available, const std::vector<int>& forceNewRowAt = {}) {
+    std::vector<std::wstring> labels;
+    labels.reserve(utf8Labels.size());
+    for (const std::string& text : utf8Labels) {
+        labels.push_back(hp::ui::Utf8ToWide(text));
+    }
+    const hp::ui::ButtonRowPlan plan = hp::ui::PlanButtonRows(labels, available, forceNewRowAt);
+    const int padding = hp::ui::ButtonTextPadding();
+
+    int clipped = 0;
+    int widestText = 0;
+    for (size_t i = 0; i < labels.size(); ++i) {
+        const int textWidth = hp::ui::MeasureTextWidth(font, labels[i]);
+        widestText = std::max(widestText, textWidth);
+        // 核心断言：文字宽 + 左右内边距 ≤ 按钮宽度（否则文字会被截）
+        if (textWidth + padding > plan.widths[i]) {
+            ++clipped;
+            Check(false, group + "[" + std::to_string(i) + "]「" + utf8Labels[i] +
+                             "」放不下：文字宽 " + std::to_string(textWidth) + " + 内边距 " +
+                             std::to_string(padding) + " > 按钮宽 " +
+                             std::to_string(plan.widths[i]));
+        } else {
+            Note(group + "[" + std::to_string(i) + "] 文字宽 " + std::to_string(textWidth) +
+                 " px，按钮宽 " + std::to_string(plan.widths[i]) + " px（内边距 " +
+                 std::to_string(padding) + " px）：" + utf8Labels[i]);
+        }
+    }
+    Check(clipped == 0, group + "：全部 " + std::to_string(labels.size()) +
+                            " 个按钮都是「文字宽 + 内边距 ≤ 按钮宽」（会截断的 " +
+                            std::to_string(clipped) + " 个，最宽文字 " + std::to_string(widestText) +
+                            " px）");
+    Check(!plan.overflow, group + "：没有单个按钮本身就比可用宽度还宽");
+    Check(plan.rowCount >= 1, group + "：排成了 " + std::to_string(plan.rowCount) + " 行");
+
+    // 每一行的按钮宽度之和（含间隙）不能超过可用宽度——否则按钮会跑到窗口外面
+    const int gap = hp::ui::S(8);
+    std::vector<int> rowWidth(static_cast<size_t>(plan.rowCount), 0);
+    std::vector<int> rowCount(static_cast<size_t>(plan.rowCount), 0);
+    for (size_t i = 0; i < plan.widths.size(); ++i) {
+        const size_t row = static_cast<size_t>(plan.rows[i]);
+        rowWidth[row] += plan.widths[i];
+        ++rowCount[row];
+    }
+    int overflowRows = 0;
+    for (size_t row = 0; row < rowWidth.size(); ++row) {
+        const int total = rowWidth[row] + gap * (rowCount[row] - 1);
+        if (total > available) {
+            ++overflowRows;
+            Check(false, group + "第 " + std::to_string(row + 1) + " 行溢出：" +
+                             std::to_string(total) + " px > 可用 " + std::to_string(available) + " px");
+        } else {
+            Note(group + "第 " + std::to_string(row + 1) + " 行：" + std::to_string(rowCount[row]) +
+                 " 个按钮共占 " + std::to_string(total) + " px（可用 " + std::to_string(available) + " px）");
+        }
+    }
+    Check(overflowRows == 0, group + "：每一行都没超过可用宽度");
+}
+
+void RunButtonFitTest() {
+    Section("按钮文字实测宽度（新建/编辑曲谱窗口：文字宽 + 内边距 ≤ 按钮宽）");
+
+    hp::ui::SetUiDpi(96);
+    hp::ui::RebuildUiFonts();
+    const HFONT body = hp::ui::UiFonts().body;
+    Check(body != nullptr, "正文按钮字体已建好（测量必须按按钮实际字体算）");
+
+    const int clientWidth = hp::ui::S(hp::ui::kNewSongWindowWidth);
+    const int available = hp::ui::NewSongButtonsAvailableWidth(clientWidth);
+    Note("客户区宽 " + std::to_string(clientWidth) + " px，按钮区可用宽 " + std::to_string(available) +
+         " px，左右内边距合计 " + std::to_string(hp::ui::ButtonTextPadding()) + " px");
+    Check(available > 0 && available < clientWidth, "可用宽度是从客户区里算出来的");
+
+    // ---- 演奏方式 6 个（含被截过的那两个组合模式）----
+    std::vector<std::string> modeLabels;
+    for (int i = 0; i < hp::kPlayModeCount; ++i) {
+        modeLabels.push_back(hp::ui::PlayModeButtonName(static_cast<hp::PlayMode>(i)));
+    }
+    CheckButtonFit("演奏方式", modeLabels, body, available,
+                   {static_cast<int>(hp::PlayMode::LeftMiddle)});
+    // 组合模式那一对必须真的排在同一行（第二排），不要被拆散
+    {
+        const hp::ui::ButtonRowPlan plan =
+            hp::ui::PlanButtonRows({hp::ui::Utf8ToWide(modeLabels[4]), hp::ui::Utf8ToWide(modeLabels[5])},
+                                   available, {});
+        Check(plan.rowCount == 1,
+              "两个组合模式按钮同行排下（" + std::to_string(plan.widths[0] + hp::ui::S(8) +
+                                                          plan.widths[1]) +
+                  " px ≤ 可用 " + std::to_string(available) + " px）");
+    }
+    // 那两个长按钮必须真的被量到"要比 96 px 宽"，否则说明测量没生效（原来写死 96 就截了字）
+    const std::wstring longMode = hp::ui::Utf8ToWide(modeLabels[4]);
+    Check(hp::ui::MeasureTextWidth(body, longMode) + hp::ui::ButtonTextPadding() >
+              hp::ui::S(96),
+          "「" + modeLabels[4] + "」实测要 > 96 px（原来写死 96 px 就是截字的原因）");
+
+    // ---- 时值 10 档 + 延时（窗口把「延时」排在时值按钮后面，同一套排版）----
+    std::vector<std::string> durationLabels;
+    for (int i = 0; i < hp::ui::kDurationChoiceCount; ++i) {
+        durationLabels.push_back(hp::ui::kDurationChoices[i].label);
+    }
+    durationLabels.push_back(hp::ui::labels::kExtendAction);
+    CheckButtonFit("时值+延时", durationLabels, body, available);
+    {
+        // 「延时」必须是排得下的最后一个：文字宽 + 内边距 ≤ 它的按钮宽
+        const std::wstring extendText = hp::ui::Utf8ToWide(hp::ui::labels::kExtendAction);
+        const hp::ui::ButtonRowPlan plan = hp::ui::PlanButtonRows(
+            {extendText}, available, {});
+        const int textWidth = hp::ui::MeasureTextWidth(body, extendText);
+        Check(textWidth + hp::ui::ButtonTextPadding() <= plan.widths[0],
+              "延时按钮：文字宽 " + std::to_string(textWidth) + " + 内边距 " +
+                  std::to_string(hp::ui::ButtonTextPadding()) + " ≤ 按钮宽 " +
+                  std::to_string(plan.widths[0]));
+    }
+
+    // ---- 时值列的表格宽度：最长的时值文字要能显示下 ----
+    int widestCell = 0;
+    std::string widestText;
+    for (int i = 0; i < hp::ui::kDurationChoiceCount; ++i) {
+        const std::string cell = hp::ui::DurationUserCell(hp::ui::kDurationChoices[i].beats, 120.0);
+        const int px = hp::ui::MeasureTextWidth(body, hp::ui::Utf8ToWide(cell));
+        if (px > widestCell) {
+            widestCell = px;
+            widestText = cell;
+        }
+    }
+    Note("最宽的时值单元格文字：" + widestText + " = " + std::to_string(widestCell) + " px");
+    Check(widestCell + hp::ui::S(24) <= hp::ui::S(200) + hp::ui::S(24),
+          "时值列按实测最宽文字定宽（" + std::to_string(widestCell) + " px + 内边距）：" + widestText);
 }
 
 void PrintList() {
@@ -837,6 +1063,7 @@ void PrintList() {
     Note("--roundtrip  编辑表格 ↔ 绝对时间轴 ↔ JSON 文本 往返");
     Note("--hotkey     设置窗口热键文本框解析");
     Note("--labels     界面文案（中文、无 emoji）");
+    Note("--buttons    按钮文字实测宽度（文字宽 + 内边距 ≤ 按钮宽，防截断）");
 }
 
 }  // namespace
@@ -888,6 +1115,9 @@ int main(int argc, char** argv) {
     }
     if (runAll || HasFlag(args, "--beats")) {
         RunBeatMathTest();
+    }
+    if (runAll || HasFlag(args, "--buttons")) {
+        RunButtonFitTest();
     }
 
     hp::LogBlank();

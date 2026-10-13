@@ -125,24 +125,37 @@ std::string NoteValueCellForSong(const Song& song, double quarterBeats);
 //   音调按钮：把键盘 Z X C V B N M , 翻译成口琴的 1 2 3 4 5 6 7 i
 //   演奏方式：本音 / 左键（降调）/ 中键（半音）/ 右键（升调）/
 //             左键+中键（降调+半音）/ 右键+中键（升调+半音）—— 后两个要同时按住两个鼠标键
-//   时值：一拍 / 两拍 / 半拍 / 休止一拍（休止只占时间、不出声）
+//   时值：按标准乐理（全 / 二分 / 四分 / 八分 / 十六分 + 附点 + 休止），见 kDurationChoices
 // ---------------------------------------------------------------------------
 std::string KeyNoteName(Key key);              // "1" … "7"、"i"
 std::string PlayModeButtonName(PlayMode mode); // "不按鼠标（本音）" 等
 
 struct DurationChoice {
-    const char* label;   // 按钮文字
-    double beats;        // 占多少拍
+    const char* label;   // 按钮文字（标准乐理叫法 + 拍数，例如 "四分音符 1 拍"）
+    double beats;        // 占多少拍（存进 JSON 的仍是这个浮点拍数，旧曲谱照旧能读）
     bool rest;           // true = 只占时间，不出声
 };
-constexpr int kDurationChoiceCount = 4;
+// 标准时值：全音符(4 拍) / 二分音符(2) / 四分音符(1) / 八分音符(1/2) / 十六分音符(1/4)
+//           + 附点四分(1.5) / 附点八分(0.75)
+// 休止同理：休止两拍 / 休止一拍 / 休止半拍（只占时间、不出声）
+constexpr int kDurationChoiceCount = 10;
 extern const DurationChoice kDurationChoices[kDurationChoiceCount];
 
+// 默认选中的时值档：四分音符（1 拍）——新建曲谱时点音调按钮加的就是四分音符
+// （数组按"从长到短"排，不能拿下标 0 当默认，否则默认成了全音符 4 拍）
+constexpr int kDefaultDurationChoiceIndex = 2;
+
 // 时值按钮下标 ↔ 拍数互查：新建曲谱窗口的"编辑选中行"要把选中行的时值反填进按钮。
-//   DurationChoiceIndexFor(2.0) == 1（两拍）；对不上任何一档（例如曲谱里手工写的 1.5 拍）返回 -1。
-//   DurationUserCell 用用户的话说时值："两拍（1 秒）"——不出现"四分音符""毫秒"这些术语。
+//   DurationChoiceIndexFor(2.0) == 1（二分音符）；对不上任何一档（例如手工写的 1.2 拍）返回 -1。
+//   DurationUserCell 用用户的话说时值："二分音符 2 拍（1 秒）"。
 int DurationChoiceIndexFor(double beats);
 std::string DurationUserCell(double beats, double bpm);
+
+// "延时"（简谱里的 "-"）：把最后一个音符的时值加一拍。
+//   数据模型仍是一个音符（duration + 1 拍），不拆成两个音符。
+//   返回被延长的行下标；表格是空的返回 -1（调用方据此提示用户先加音符）。
+//   cursorBeats 非空时顺带把"续写位置"推到这一行的末尾（下一个音符从它后面接）。
+int ExtendLastRow(std::vector<EditorRow>& rows, double* cursorBeats);
 
 // ---------------------------------------------------------------------------
 // 主界面音符表的一格（Phase 11 大型曲谱：虚拟列表按需生成，不预建十万行）
@@ -219,6 +232,7 @@ extern const char* kModePrefix;        // "模式："
 extern const char* kExactMode;         // "精确"
 extern const char* kNaturalMode;       // "自然"
 extern const char* kCustomSpeed;       // "自定义（在设置里填）"
+extern const char* kExtendAction;      // "延时（把上一个音符延长一拍）"（简谱的 -）
 }  // namespace labels
 
 }  // namespace ui

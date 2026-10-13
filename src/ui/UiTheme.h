@@ -70,6 +70,40 @@ void RebuildThemeBrushes();
 void DestroyThemeBrushes();
 
 // ---------------------------------------------------------------------------
+// 按钮文字测量：按钮宽度一律由**文字实测宽度**推出来，不用魔法数字
+//
+// 起因：新建/编辑曲谱窗口"演奏方式"第二排的长按钮（按住左键+中键（降调+半音））
+//       原来按等分算宽度，中文比算出来的宽，左端被切掉一个"按"字；时值档位加多以后
+//       同类问题会更多。所以宽度必须量出来：内存 DC + GetTextExtentPoint32W，
+//       用该按钮**实际使用的字体**（UiFonts().body，PaintFlatButton 也用它画字）。
+// 约定：窗口用这里的函数排版，自检（ui_test）用同一套函数断言
+//       "文字宽 + 左右内边距 ≤ 按钮宽度"，这样以后再改文案也会被拦住。
+// ---------------------------------------------------------------------------
+constexpr int kNewSongWindowWidth = 900;   // 新建/编辑曲谱窗口的客户区基准宽度（96 DPI）
+//   900 而不是 790：时值从 4 档扩到 10 档（标准乐理）后，按钮多了一倍，
+//   宽一点才能在 2 行里放下，窗口不至于变得又窄又高。
+
+int MeasureTextWidth(HFONT font, const std::wstring& text);   // 文字实测宽度（像素）
+int ButtonTextPadding();                                      // 按钮文字左右内边距合计（像素）
+int ButtonWidthForText(const std::wstring& text);             // 文字宽 + 内边距（正文按钮字体）
+
+// 新建曲谱窗口里"按钮列"的可用宽度（客户区宽度去掉左边距、标签列、右边距）
+int NewSongButtonsAvailableWidth(int clientWidth);
+
+// 一组按钮的排版结果：宽度按文字实测，行号按可用宽度贪心折行
+struct ButtonRowPlan {
+    std::vector<int> widths;   // 每个按钮的宽度
+    std::vector<int> rows;     // 每个按钮排在第几行（0 起）
+    int rowCount = 0;          // 一共几行
+    bool overflow = false;     // 有按钮自己就比整行可用宽度还宽（必须报出来，不能默默截字）
+};
+
+// forceNewRowAt：这些下标必须**另起一行**（例如"按住左键+中键 / 按住右键+中键"这一对组合模式
+//   要挨在一起，不要被贪心折行拆散）。可以为空。
+ButtonRowPlan PlanButtonRows(const std::vector<std::wstring>& labels, int availableWidth,
+                             const std::vector<int>& forceNewRowAt = {});
+
+// ---------------------------------------------------------------------------
 // 文本工具
 // ---------------------------------------------------------------------------
 std::wstring Utf8ToWide(const std::string& text);

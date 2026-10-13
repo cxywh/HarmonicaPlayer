@@ -1026,6 +1026,25 @@ std::string App::ApplySettings(const AppSettings& settings) {
     std::vector<std::string> problems;
     std::vector<std::string> warnings;
 
+    // ---- 热键模式（放行 / 独占）先定下来 ----
+    // 放行（默认）：不注册全局热键，键留给游戏，靠低层钩子认（需要提权）；
+    // 独占：RegisterHotKey，键被工具接走。
+    // 顺序很重要：必须先决定"热键管理器该不该在跑"，再决定要不要往它里面设热键——
+    // 否则放行模式下"管理器按设计没启动"会被当成设置失败报警（debug.log 里每次启动
+    // 都写一条"设置没全部生效：…热键管理器还没有启动"的噪音，用户明确要求删掉）。
+    hookHotkeysActive_.store(!settings.exclusiveHotkeys);
+    if (hotkeys_ != nullptr) {
+        const bool running = hotkeys_->IsRunning();
+        if (settings.exclusiveHotkeys && !running) {
+            std::string startError;
+            if (!hotkeys_->Start([this](const HotkeyEvent& event) { OnHotkey(event); }, &startError)) {
+                problems.push_back("热键独占没启用成功：" + startError);
+            }
+        } else if (!settings.exclusiveHotkeys && running) {
+            hotkeys_->Stop();
+        }
+    }
+
     // ---- 热键：变了才重新注册（注册失败会回滚，Phase 5）----
     struct Rebind {
         HotkeyAction action;
@@ -1040,15 +1059,24 @@ std::string App::ApplySettings(const AppSettings& settings) {
         {HotkeyAction::Next, settings.nextHotkey},
     };
     if (hotkeys_ != nullptr) {
+        // 管理器在跑 = 独占模式：改热键要真的注册进系统，失败必须报警（照旧落盘 debug.log）。
+        // 管理器没在跑 = 放行模式：热键由钩子认（绑定表在下面按同一份设置重填），
+        // 这里**不能**调用 SetHotkey——它只会返回"热键管理器还没有启动"，那是设计如此，
+        // 不是设置失败（报出来就是噪音，用户要求删掉）。
+        const bool managerRunning = hotkeys_->IsRunning();
         for (const Rebind& rebind : rebinds) {
-            const HotkeyBinding current = hotkeys_->GetHotkey(rebind.action);
             HotkeyBinding wanted;
             std::string error;
+            // 解析失败两种模式都要报：填错了就是填错了
             if (!ParseHotkey(rebind.text, wanted, &error)) {
                 problems.push_back(std::string(HotkeyActionDisplayName(rebind.action)) +
                                    " 热键： " + error);
                 continue;
             }
+            if (!managerRunning) {
+                continue;   // 放行模式：不注册、也不报错
+            }
+            const HotkeyBinding current = hotkeys_->GetHotkey(rebind.action);
             if (wanted.Equals(current)) {
                 continue;
             }
@@ -1085,22 +1113,6 @@ std::string App::ApplySettings(const AppSettings& settings) {
         options.mouseButtons = settings.monitorMouseButtons;
         options.mouseMove = settings.monitorMouseMove;
         monitor_->SetOptions(options);
-    }
-
-    // ---- 热键模式（放行 / 独占）----
-    // 放行：不注册全局热键，键留给游戏，靠钩子认（需要提权）
-    // 独占：RegisterHotKey，键被工具接走
-    hookHotkeysActive_.store(!settings.exclusiveHotkeys);
-    if (hotkeys_ != nullptr) {
-        const bool running = hotkeys_->IsRunning();
-        if (settings.exclusiveHotkeys && !running) {
-            std::string startError;
-            if (!hotkeys_->Start([this](const HotkeyEvent& event) { OnHotkey(event); }, &startError)) {
-                problems.push_back("热键独占没启用成功：" + startError);
-            }
-        } else if (!settings.exclusiveHotkeys && running) {
-            hotkeys_->Stop();
-        }
     }
 
     // ---- 绑定表自己存一份（放行模式没有注册表可查）----
