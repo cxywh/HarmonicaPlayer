@@ -430,7 +430,36 @@ def main():
     parser.add_argument("--list", action="store_true", help="列出内置曲目")
     parser.add_argument("--print", dest="show", metavar="曲名", help="打印某首的换算结果，不写文件")
     parser.add_argument("--text", metavar="曲名", help="打印某首的文本曲谱（一行一个音符，格式与 App 的\"文本曲谱\"窗口相同，可直接粘进去）")
+    parser.add_argument("--jianpu", metavar="简谱", help="直接给一段简谱文本，生成一个曲谱 JSON")
+    parser.add_argument("--jianpu-file", metavar="文件", help="从文件读简谱文本（长曲用这个）")
+    parser.add_argument("--name", default="未命名", help="曲名（默认 未命名）")
+    parser.add_argument("--bpm", type=float, default=120.0, help="速度（默认 120）")
+    parser.add_argument("--time-signature", default="4/4", help="拍号（默认 4/4）")
+    parser.add_argument("--print-json", action="store_true", help="打到 stdout，不写文件")
     args = parser.parse_args()
+
+    if args.jianpu or args.jianpu_file:
+        text = args.jianpu or ""
+        if args.jianpu_file:
+            with open(args.jianpu_file, encoding="utf-8-sig") as handle:
+                text = handle.read()
+        try:
+            song = build_song(args.name, text, args.bpm, args.time_signature)
+        except (ScoreError, ValueError, IndexError) as exc:
+            print("简谱有问题：%s" % exc)
+            return 1
+        data = to_json(song)
+        if args.print_json:
+            print(json.dumps(data, ensure_ascii=False, indent=4))
+            return 0
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, args.name + ".json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=4)
+        print("已写出 %s：%d 个音符，%.3f 拍，%g bpm，%s，移调 %+d，音域 %s，演奏方式 %s"
+              % (path, len(song["notes"]), song["beats"], song["bpm"], song["timeSignature"],
+                 song["shift"], "".join(song["used"]), "/".join(song["modes"])))
+        return 0
 
     if args.text:
         for title, jianpu, bpm in SONGS:
