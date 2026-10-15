@@ -388,12 +388,64 @@ def mode_test_song():
     }
 
 
+# 与 App 里 ModePrefixText 逐字一致（Middle 就是 MIDDLE，单字母 M 只是解析器容忍的写法）
+MODE_PREFIX = {"Normal": "", "Left": "L", "Middle": "MIDDLE", "Right": "R",
+               "LeftMiddle": "LM", "RightMiddle": "RM"}
+WHOLE_FRACTIONS = [(1, 1), (1, 2), (1, 4), (1, 8), (1, 16), (1, 32)]
+
+
+def beats_to_fraction(beats, denominator):
+    """拍的时值 → 全音符分数；返回 (分子, 分母, 是否精确)。一拍 = 1/denominator 个全音符。"""
+    want = float(beats) / float(denominator)
+    best = None
+    for num, den in WHOLE_FRACTIONS:
+        diff = abs(want - float(num) / den)
+        if best is None or diff < best[2]:
+            best = (num, den, diff)
+    return best[0], best[1], best[2] < 1e-6
+
+
+def to_text(song):
+    """与 App 里 SongToTextScore 同格式：[演奏方式+]键名 分数，一行一个音符（顺序累加）。"""
+    denom = int(str(song["timeSignature"]).split("/")[1])
+    lines, inexact, cursor = [], [], 0.0
+    for i, n in enumerate(song["notes"], start=1):
+        if n["beat"] > cursor + 1e-6:
+            inexact.append("第 %d 个音符前有 %.3f 拍空档（文本谱不表示休止符）" % (i, n["beat"] - cursor))
+        elif n["beat"] + 1e-6 < cursor:
+            inexact.append("第 %d 个音符与前一个重叠（文本谱是顺序累加）" % i)
+        cursor = n["beat"] + n["duration"]
+        prefix = MODE_PREFIX.get(n["mode"], "")
+        num, den, exact = beats_to_fraction(n["duration"], denom)
+        lines.append("%s%s %d/%d" % ((prefix + "+") if prefix else "", n["key"], num, den))
+        if not exact:
+            inexact.append("第 %d 个音符（%s）时值 %.3f 拍不是标准时值，按最接近的 %d/%d 写"
+                           % (i, n["key"], n["duration"], num, den))
+    return "\n".join(lines) + "\n", inexact
+
+
 def main():
     parser = argparse.ArgumentParser(description="简谱 → Harmonica Player 曲谱")
     parser.add_argument("--out", default="dist/songs", help="输出目录（默认 dist/songs）")
     parser.add_argument("--list", action="store_true", help="列出内置曲目")
     parser.add_argument("--print", dest="show", metavar="曲名", help="打印某首的换算结果，不写文件")
+    parser.add_argument("--text", metavar="曲名", help="打印某首的文本曲谱（一行一个音符，格式与 App 的\"文本曲谱\"窗口相同，可直接粘进去）")
     args = parser.parse_args()
+
+    if args.text:
+        for title, jianpu, bpm in SONGS:
+            if title == args.text:
+                song = build_song(title, jianpu, bpm)
+                text, inexact = to_text(song)
+                print("=== %s（%d 个音符，%g bpm，%s，移调 %+d）"
+                      % (title, len(song["notes"]), bpm, song["timeSignature"], song["shift"]))
+                print(text, end="")
+                for line in inexact:
+                    print("# 近似：" + line)
+                print("# 拍数合计 %.3f（原曲 %.3f）" % (sum(n["duration"] for n in song["notes"]), song["beats"]))
+                return 0
+        print("没有这首：%s（用 --list 看曲目）" % args.text)
+        return 1
 
     if args.list:
         for title, jianpu, bpm in SONGS:
