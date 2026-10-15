@@ -1,0 +1,1431 @@
+{
+    "name": "雨爱",
+    "bpm": 72.0,
+    "timeSignature": "4/4",
+    "beatUnit": "Quarter",
+    "version": 1,
+    "notes": [
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 0.0,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 1.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 2.0,
+            "duration": 2.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 4.0,
+            "duration": 1.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 5.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 6.0,
+            "duration": 2.0
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 8.0,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 9.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 10.0,
+            "duration": 2.0
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 12.0,
+            "duration": 4.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 16.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 17.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 17.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 18.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 19.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 20.0,
+            "duration": 2.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 23.0,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 23.25,
+            "duration": 0.75
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 24.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 25.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 26.0,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 26.25,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 26.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 27.0,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 27.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 28.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 30.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 31.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 31.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 33.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 33.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 34.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 35.0,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 36.0,
+            "duration": 2.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 39.0,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 39.25,
+            "duration": 0.75
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 40.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 41.75,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 42.0,
+            "duration": 0.25
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 42.25,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 42.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 43.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 43.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 44.0,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 44.5,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 46.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 47.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 47.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 48.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 48.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 49.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 49.5,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 49.75,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 50.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 50.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 51.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 52.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 52.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 53.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 53.5,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 53.75,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 54.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 54.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 55.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 56.0,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 56.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 57.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 57.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 57.75,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 58.0,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 58.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 59.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 60.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 60.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 61.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 61.5,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 63.25,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 63.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 63.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 64.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 64.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 65.25,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 65.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 65.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 66.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 66.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 67.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 67.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 68.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 68.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 68.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 69.0,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 69.25,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 69.75,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 70.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 70.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 71.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 71.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 72.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 72.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 72.75,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 73.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 74.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 75.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 75.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 76.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 76.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 77.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 77.5,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 78.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 79.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 80.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 81.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 81.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 82.0,
+            "duration": 0.75
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 82.75,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 83.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 84.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 85.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 85.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 86.0,
+            "duration": 0.75
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 86.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 87.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 87.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 88.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 88.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 89.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 89.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 90.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 91.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 91.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 92.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 92.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 93.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 93.5,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 95.25,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 95.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 95.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 96.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 96.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 97.25,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 97.5,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 97.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 98.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 98.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 99.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 99.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 100.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 100.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 100.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 101.0,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 101.25,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 101.75,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 102.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 102.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 103.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 103.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 104.0,
+            "duration": 1.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 105.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 105.75,
+            "duration": 0.25
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 106.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 107.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 107.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 108.0,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 108.5,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 109.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 109.5,
+            "duration": 1.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 110.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Left",
+            "beat": 111.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 112.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 113.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 113.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 114.0,
+            "duration": 0.75
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 114.75,
+            "duration": 0.25
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 115.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 116.0,
+            "duration": 1.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 117.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 118.0,
+            "duration": 0.75
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 118.75,
+            "duration": 0.25
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 119.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 119.75,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 120.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 120.5,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 121.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 121.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 122.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 123.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 123.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 124.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 125.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 126.0,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 126.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 127.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 127.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 128.0,
+            "duration": 4.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 136.0,
+            "duration": 1.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 137.5,
+            "duration": 0.5
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 138.0,
+            "duration": 2.0
+        },
+        {
+            "key": "B",
+            "mode": "Middle",
+            "beat": 140.0,
+            "duration": 0.75
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 140.75,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 141.0,
+            "duration": 0.5
+        },
+        {
+            "key": "V",
+            "mode": "Normal",
+            "beat": 141.5,
+            "duration": 1.5
+        },
+        {
+            "key": "N",
+            "mode": "Normal",
+            "beat": 143.0,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 143.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 144.0,
+            "duration": 2.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 146.0,
+            "duration": 2.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 148.0,
+            "duration": 2.0
+        },
+        {
+            "key": "X",
+            "mode": "RightMiddle",
+            "beat": 150.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Right",
+            "beat": 151.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Right",
+            "beat": 152.0,
+            "duration": 1.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 153.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 154.0,
+            "duration": 1.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 155.5,
+            "duration": 0.5
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 156.0,
+            "duration": 4.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 160.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 161.0,
+            "duration": 0.5
+        },
+        {
+            "key": "N",
+            "mode": "Left",
+            "beat": 161.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 162.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 163.0,
+            "duration": 1.0
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 164.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 165.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 166.0,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 166.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 167.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 167.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 168.0,
+            "duration": 3.0
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 171.5,
+            "duration": 0.25
+        },
+        {
+            "key": "C",
+            "mode": "Normal",
+            "beat": 171.75,
+            "duration": 0.25
+        },
+        {
+            "key": "B",
+            "mode": "Normal",
+            "beat": 172.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 173.0,
+            "duration": 1.0
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 174.0,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 174.5,
+            "duration": 0.5
+        },
+        {
+            "key": "M",
+            "mode": "Left",
+            "beat": 175.0,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 175.5,
+            "duration": 0.5
+        },
+        {
+            "key": "X",
+            "mode": "Normal",
+            "beat": 176.0,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 176.5,
+            "duration": 0.5
+        },
+        {
+            "key": "Z",
+            "mode": "Normal",
+            "beat": 177.0,
+            "duration": 3.0
+        }
+    ]
+}
